@@ -1,0 +1,293 @@
+/* AS Multiindex Modal Search Styles */
+.asmi-modal-trigger {
+    background: none !important;
+    border: none !important;
+    padding: 5px !important;
+    cursor: pointer;
+    line-height: 0 !important;
+    color: #474747 !important;
+    transition: color 0.3s ease;
+}
+.asmi-modal-trigger:hover {
+    color: #7F0102 !important;
+}
+
+.asmi-modal-backdrop {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    z-index: 999998;
+}
+
+.asmi-modal-window {
+    display: none !important;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 90%;
+    max-width: 840px;
+    height: 90vh;
+    max-height: 540px;
+    background: #fff;
+    z-index: 999999;
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    flex-direction: column;
+}
+
+html.asmi-modal-open {
+    overflow: hidden;
+}
+body.asmi-modal-open {
+    position: fixed;
+    overflow: hidden;
+    width: 100%;
+}
+
+.asmi-modal-backdrop.is-active,
+.asmi-modal-window.is-active {
+    display: flex !important;
+}
+
+.asmi-modal-close {
+    background: none;
+    border: none;
+    font-size: 30px;
+    line-height: 1;
+    cursor: pointer;
+    color: #888;
+    padding: 0 10px;
+}
+.asmi-modal-close:hover {
+    color: #000;
+}
+
+.asmi-modal-content {
+    padding: 30px;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+.asmi-search-form-wrapper {
+    position: relative;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+.asmi-search-field {
+    width: 100%;
+    flex-grow: 1;
+    padding: 15px 20px;
+    font-size: 18px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+.asmi-results-area {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+#asmi-modal-results .asmi-results-tabs-nav {
+    display: flex;
+    border-bottom: 1px solid #ddd;
+    flex-shrink: 0;
+}
+#asmi-modal-results .asmi-results-tab-btn {
+    padding: 8px 12px;
+    border: 1px solid transparent !important;
+    border-bottom: 0;
+    background: #f1f1f1;
+    cursor: pointer;
+    font-size: 14px;
+    color: #555;
+    border-radius: 3px 3px 0 0;
+    flex-grow: 1;
+    text-align: center;
+}
+#asmi-modal-results .asmi-results-tab-btn:hover {
+    background-color: #e0e0e0;
+    color: #111;
+}
+#asmi-modal-results .asmi-results-tab-btn.active {
+    background: #fff !important;
+    color: #111 !important;
+    border-color: #ddd !important;
+    border-bottom: 1px solid #fff !important;
+    position: relative;
+    top: 1px;
+}
+#asmi-modal-results .asmi-results-tab-btn.active:hover {
+    background: #fff !important;
+}
+
+.asmi-results-panes-wrapper {
+    flex-grow: 1;
+    position: relative;
+    min-height: 0;
+}
+.asmi-results-pane { 
+    display: none;
+    flex-direction: column;
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+}
+.asmi-results-pane.active {
+    display: flex;
+}
+
+.asmi-scrollable-content {
+    flex-grow: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    border: 1px solid #ddd;
+    border-top: none;
+}
+.asmi-scrollable-content article:last-child { 
+    border-bottom: none; 
+}
+
+.asmi-results-area article {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 10px 15px;
+    border-bottom: 1px solid #f0f0f0;
+    color: inherit;
+}
+.asmi-results-area a,
+.asmi-results-area a:hover {
+    text-decoration: none !important;
+}
+
+.asmi-results-area article:hover { background-color: #f9f9f9; }
+
+.asmi-result-image {
+    width: 135px;
+    height: 90px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.asmi-result-image img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+.asmi-result-no-image {
+    width: 100%;
+    height: 100%;
+    background-color: #f0f0f0;
+}
+.asmi-result-content { flex-grow: 1; min-width: 0; } 
+
+/* Styling für mehrzeilige Titel (Standard für WP-Posts) */
+.asmi-result-title {
+    font-weight: 600;
+    margin: 0;
+    line-height: 1.3;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+}
+
+/* NEU: Spezifisches Styling für einzeilige Produkttitel */
+#asmi-pane-prod .asmi-result-title {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block; /* Überschreibt die -webkit-box Eigenschaft */
+    -webkit-line-clamp: unset;
+    -webkit-box-orient: unset;
+}
+
+/* KORREKTUR: Styling für Produktdetails ohne Abstände */
+.asmi-product-details {
+    font-size: 12px;
+    color: #555;
+    display: flex;
+    flex-direction: column;
+}
+
+.asmi-product-details span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.4; /* Sorgt für etwas Luft */
+}
+
+
+.asmi-info-message { padding: 40px 20px; text-align: center; color: #777; }
+
+.asmi-view-all-link {
+    display: block;
+    padding: 12px 15px;
+    text-align: center;
+    font-weight: 600;
+    color: #333;
+    background-color: #f9f9f9;
+    border: 1px solid #ddd;
+    border-top: 1px solid #ddd;
+    flex-shrink: 0;
+}
+.asmi-view-all-link:hover {
+    background-color: #f1f1f1;
+    color: #111;
+}
+
+.asmi-results-area .asmi-spinner {
+    margin: 40px auto;
+    display: block;
+    width: 40px;
+    height: 40px;
+    border: 4px solid #ddd;
+    border-top-color: #333;
+    border-radius: 50%;
+    animation: asmi-spin 1s linear infinite;
+}
+
+@keyframes asmi-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Responsive Styles */
+@media (max-width: 768px) {
+    .asmi-modal-window {
+        width: 100%;
+        height: 100%;
+        max-width: none;
+        max-height: none;
+        border-radius: 0;
+        top: 0;
+        left: 0;
+        transform: none;
+    }
+    .asmi-modal-trigger {
+        color: #fff !important;
+    }
+    .asmi-modal-trigger:hover {
+        color: #ddd !important;
+    }
+}
+@media (max-width: 959px) {
+    .asmi-modal-trigger {
+        color: #fff !important;
+    }
+    .asmi-modal-trigger:hover {
+        color: #ddd !important;
+    }
+}

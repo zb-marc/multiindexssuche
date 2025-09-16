@@ -1,0 +1,128 @@
+<?php
+/**
+ * Plugin Name: AS Multiindex Search
+ * Description: Eine föderierte Suche, die native WordPress-Inhalte und mehrsprachige, externe Produktfeeds (XML, CSV, JSON) in jeder AJAX-Suche nahtlos zusammenführt.
+ * Version:     1.5.1
+ * Author:      Marc Mirschel
+ * Author URI:  https://mirschel.biz
+ * Plugin URI:  https://akkusys.de
+ * License:     GPL-2.0+
+ * Requires PHP: 7.4
+ * Requires at least: 5.8
+ * Text Domain: asmi-search
+ * Domain Path: /languages
+ */
+
+if ( ! defined( 'ABSPATH' ) ) exit;
+
+// Plugin-Konstanten.
+define( 'ASMI_VERSION', '1.5.1' );
+define( 'ASMI_OPT', 'asmi_options' );
+define( 'ASMI_SLUG', 'asmi-settings' );
+define( 'ASMI_REST_NS', 'asmi/v1' );
+define( 'ASMI_REST_ROUTE', 'search' );
+define( 'ASMI_INDEX_TICK_ACTION', 'asmi_do_index_tick' );
+define( 'ASMI_DELETE_TICK_ACTION', 'asmi_do_delete_tick' );
+define( 'ASMI_IMAGE_DELETE_TICK_ACTION', 'asmi_do_image_delete_tick' );
+define( 'ASMI_ASSETS', plugin_dir_url( __FILE__ ) . 'assets/' );
+define( 'ASMI_INDEX_TABLE', 'asmi_index' );
+define( 'ASMI_INDEX_STATE_OPT', 'asmi_index_state' );
+define( 'ASMI_DELETE_STATE_OPT', 'asmi_delete_state' );
+define( 'ASMI_IMAGE_DELETE_STATE_OPT', 'asmi_image_delete_state' );
+define( 'ASMI_DB_VER_OPT', 'asmi_db_version' );
+define( 'ASMI_SETTINGS_GROUP', 'asmi_settings' );
+define( 'ASMI_UPLOAD_DIR', 'as-multiindex-search' );
+
+/**
+ * Lädt alle erforderlichen Plugin-Dateien.
+ */
+function asmi_include_files() {
+	$inc_path    = plugin_dir_path( __FILE__ ) . 'includes/';
+	$indexing_path = $inc_path . 'indexing/';
+	$admin_ui_path = $inc_path . 'admin-ui/';
+
+	// Kern-Dateien
+	require_once $inc_path . 'core.php';
+	require_once $inc_path . 'db.php';
+	require_once $inc_path . 'parsers.php';
+	require_once $inc_path . 'admin-ui.php';
+	require_once $inc_path . 'rest.php';
+	require_once $inc_path . 'frontend.php';
+	require_once $inc_path . 'admin-actions.php';
+	require_once $inc_path . 'warmup.php';
+	require_once $inc_path . 'search.php';
+
+	// Indexierungs-Komponenten
+	require_once $indexing_path . 'state.php';
+	require_once $indexing_path . 'images.php';
+	require_once $indexing_path . 'database.php';
+	require_once $indexing_path . 'control.php';
+	require_once $indexing_path . 'handler.php';
+	require_once $indexing_path . 'deletion.php';
+	require_once $indexing_path . 'wp-content-indexer.php';
+
+	// Admin UI Tabs
+	foreach ( glob( $admin_ui_path . 'tab-*.php' ) as $file ) {
+		require_once $file;
+	}
+}
+asmi_include_files();
+
+
+/**
+ * Wird bei der Aktivierung des Plugins ausgeführt.
+ *
+ * @return void
+ */
+function asmi_activate_plugin() {
+	asmi_install_and_repair_database();
+	if ( ! wp_next_scheduled( 'asmi_cron_warmup' ) ) {
+		wp_schedule_event( time(), 'hourly', 'asmi_cron_warmup' );
+	}
+	if ( ! wp_next_scheduled( 'asmi_cron_wp_content_index' ) ) {
+		wp_schedule_event( time(), 'daily', 'asmi_cron_wp_content_index' );
+	}
+}
+register_activation_hook( __FILE__, 'asmi_activate_plugin' );
+
+/**
+ * Wird bei der Deaktivierung des Plugins ausgeführt.
+ *
+ * @return void
+ */
+function asmi_deactivate_plugin() {
+	wp_clear_scheduled_hook( 'asmi_cron_warmup' );
+	wp_clear_scheduled_hook( ASMI_INDEX_TICK_ACTION );
+	wp_clear_scheduled_hook( ASMI_DELETE_TICK_ACTION );
+	wp_clear_scheduled_hook( ASMI_IMAGE_DELETE_TICK_ACTION );
+	wp_clear_scheduled_hook( 'asmi_cron_reindex' );
+	wp_clear_scheduled_hook( 'asmi_cron_wp_content_index' );
+}
+register_deactivation_hook( __FILE__, 'asmi_deactivate_plugin' );
+
+
+/**
+ * Wird bei der Deinstallation des Plugins ausgeführt.
+ *
+ * @return void
+ */
+function asmi_uninstall_plugin() {
+	delete_option( ASMI_OPT );
+	delete_option( ASMI_INDEX_STATE_OPT );
+	delete_option( ASMI_DELETE_STATE_OPT );
+	delete_option( ASMI_IMAGE_DELETE_STATE_OPT );
+	delete_option( ASMI_DB_VER_OPT );
+	delete_option( 'asmi_tick_token' );
+	global $wpdb;
+	$table_name = $wpdb->prefix . ASMI_INDEX_TABLE;
+	$wpdb->query( "DROP TABLE IF EXISTS {$table_name}" );
+	if ( function_exists( 'asmi_delete_image_cache_folder' ) ) {
+		asmi_delete_image_cache_folder();
+	}
+}
+register_uninstall_hook( __FILE__, 'asmi_uninstall_plugin' );
+
+/**
+ * Stellt sicher, dass die DB-Tabelle bei jedem Laden existiert und korrekt ist.
+ */
+add_action( 'plugins_loaded', 'asmi_install_and_repair_database', 10 );

@@ -1,0 +1,222 @@
+/* Admin styles for AS Multiindex Search */
+.nav-tab-wrapper {
+  margin-bottom: 20px;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid #c3c4c7;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+  padding: 1px 20px 20px;
+  margin-top: 20px;
+  width: 100%;
+  max-width: 920px;
+  min-width: 350px;
+  box-sizing: border-box;
+}
+
+/* Status Indicator */
+.asmi-status-indicator {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: middle;
+}
+.asmi-status-active {
+    background-color: #4caf50; /* Grün */
+}
+.asmi-status-error {
+    background-color: #d63638; /* Rot */
+}
+
+/* NEU: Styles für das Status-Dashboard */
+.asmi-status-dashboard {
+    background: #f9f9f9;
+    border: 1px solid #e5e5e5;
+    padding: 20px;
+    margin-top: 15px;
+}
+.asmi-status-overview {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #e5e5e5;
+    margin-bottom: 15px;
+}
+.asmi-status-overview h3 {
+    margin: 0;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.asmi-status-overview .asmi-status-text .dashicons {
+    font-size: 24px;
+    line-height: 1;
+}
+.asmi-status-total-count {
+    text-align: right;
+}
+.asmi-status-total-count .asmi-stats-total {
+    font-size: 24px;
+    font-weight: 600;
+    color: #2271b1;
+}
+.asmi-last-run-summary, .asmi-process-details {
+    font-size: 14px;
+}
+.asmi-last-run-summary ul {
+    list-style: disc;
+    margin-left: 20px;
+}
+.asmi-help-tip {
+    cursor: help;
+    color: #646970;
+    text-decoration: none;
+    border-bottom: 1px dotted #646970;
+}
+
+
+/* Toggle switch */
+.as-glossar-toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  vertical-align: middle;
+}
+.as-glossar-toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.as-glossar-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #d63638;
+  transition: 0.4s;
+  border-radius: 24px;
+}
+.as-glossar-slider:before {
+  content: "";
+  position: absolute;
+  height: 16px;
+  width: 16px;
+  left: 4px;
+  bottom: 4px;
+  background: #fff;
+  transition: 0.4s;
+  border-radius: 50%;
+}
+.as-glossar-toggle-switch input:checked + .as-glossar-slider {
+  background: #4caf50;
+}
+.as-glossar-toggle-switch input:checked + .as-glossar-slider:before {
+  transform: translateX(20px);
+}
+.asmi-wrap .form-table th {
+  width: 280px;
+}
+.asmi-tab {
+  display: none;
+}
+
+/* Data Tab Styles */
+.asmi-data-nav {
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 10px;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* KORREKTUR: Die Buttons wurden durch Links ersetzt und erhalten hier ihr Styling. */
+.asmi-data-filter {
+    padding: 6px 12px;
+    border: 1px solid #ccc;
+    background: #f6f7f7;
+    cursor: pointer;
+    margin-right: 5px;
+    border-radius: 3px;
+    text-decoration: none;
+    color: #555;
+    font-size: 13px;
+    line-height: 1.5;
+}
+.asmi-data-filter:hover {
+    background: #f0f0f0;
+    color: #1d2327;
+}
+.asmi-data-filter.active {
+    background: #fff;
+    border-bottom-color: #f0f0f0;
+    font-weight: 600;
+    color: #1d2327;
+}
+
+.asmi-data-table-wrap {
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+/* Modal Styles */
+#asmi-modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    z-index: 1000;
+}
+.asmi-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #fff;
+    border: 1px solid #ccc;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    z-index: 1001;
+    width: 90%;
+    max-width: 440px;
+    border-radius: 4px;
+}
+.asmi-modal-title {
+    padding: 15px;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.asmi-modal-title h3 {
+    margin: 0;
+    font-size: 18px;
+}
+.asmi-modal-close {
+    border: none;
+    background: transparent;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0 5px;
+    line-height: 1;
+}
+.asmi-modal-content {
+    padding: 20px;
+}
+.asmi-modal-footer {
+    padding: 15px;
+    border-top: 1px solid #ddd;
+    text-align: right;
+}
+.asmi-modal-footer .button {
+    margin-left: 10px;
+}
