@@ -74,12 +74,13 @@ function asmi_enqueue_frontend_assets() {
  * Registriert den Shortcode [multiindex_search].
  */
 add_shortcode(
-	'multiindex_search',
-	function( $atts ) {
-		$o = asmi_get_opts();
-		if ( empty( $o['enable_shortcode'] ) ) {
-			return '';
-		}
+    'multiindex_search',
+    function( $atts ) {
+        $o = asmi_get_opts();
+        
+        if ( empty( $o['enable_shortcode'] ) ) {
+            return '';
+        }
 
 		$atts = shortcode_atts(
 			array(
