@@ -39,9 +39,16 @@ function asmi_install_and_repair_database() {
 
 	// SCHRITT 2: Alle Spalten prüfen und bei Bedarf hinzufügen.
 	$all_columns = [
-		'content'   => 'LONGTEXT', 'excerpt'   => 'TEXT', 'url' => 'VARCHAR(2048)',
-		'image'     => 'VARCHAR(2048)', 'price' => 'VARCHAR(50)', 'sku' => 'VARCHAR(100)',
-		'gtin'      => 'VARCHAR(100)', 'raw_data'  => 'LONGTEXT',
+		'content'   => 'LONGTEXT', 
+		'excerpt'   => 'TEXT', 
+		'url' => 'VARCHAR(2048)',
+		'image'     => 'VARCHAR(2048)', 
+		'price' => 'VARCHAR(50)', 
+		'sku' => 'VARCHAR(100)',
+		'gtin'      => 'VARCHAR(100)', 
+		'raw_data'  => 'LONGTEXT',
+		'content_hash' => 'VARCHAR(64)',  // NEU: Hash für Änderungserkennung
+		'last_modified' => 'DATETIME',    // NEU: Zeitstempel der letzten WP-Änderung
 	];
 	$existing_columns = $wpdb->get_col( "SHOW COLUMNS FROM `$table_name`" );
 	foreach ( $all_columns as $col_name => $col_type ) {
@@ -77,6 +84,12 @@ function asmi_install_and_repair_database() {
 	}
 	if ( ! in_array( 'idx_gtin', $existing_keys, true ) ) {
 		$wpdb->query( "ALTER TABLE `$table_name` ADD KEY `idx_gtin` (`gtin`)" );
+	}
+	
+	// NEU: Index für content_hash für schnellere Änderungsprüfung
+	if ( ! in_array( 'idx_content_hash', $existing_keys, true ) ) {
+		$wpdb->query( "ALTER TABLE `$table_name` ADD KEY `idx_content_hash` (`content_hash`)" );
+		asmi_debug_log( 'Database repair: Added index idx_content_hash.' );
 	}
 }
 

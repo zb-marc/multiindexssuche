@@ -1,50 +1,158 @@
 <?php
-if ( ! defined( 'ABSPATH' ) ) exit;
+/**
+ * Admin-bezogene Ajax-Aktionen.
+ *
+ * @package ASMultiindexSearch
+ */
 
-// Diese Aktionen dienen jetzt als Fallback, falls JavaScript im Browser des Nutzers
-// deaktiviert ist oder ein Fehler auftritt. Die primäre Interaktion läuft
-// über die REST API und die assets/admin.js Datei.
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
 
-// Neuindexierung
-add_action('admin_post_asmi_reindex', function(){
-  if (!current_user_can('manage_options')) wp_die('forbidden');
-  check_admin_referer('asmi_reindex');
-  asmi_index_reset_and_start();
-  wp_safe_redirect( admin_url('admin.php?page='.ASMI_SLUG.'#tab-index') );
-  exit;
-});
+/**
+ * Ajax-Handler für ChatGPT Cache-Tabellen-Erstellung.
+ */
+function asmi_ajax_create_chatgpt_cache_table() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_die( -1 );
+	}
+	
+	check_ajax_referer( 'asmi_create_cache_table', '_wpnonce' );
+	
+	// Erstelle die Cache-Tabelle
+	global $wpdb;
+	$table_name = $wpdb->prefix . 'asmi_chatgpt_cache';
+	$charset_collate = $wpdb->get_charset_collate();
+	
+	$sql = "CREATE TABLE IF NOT EXISTS $table_name (
+		id int(11) NOT NULL AUTO_INCREMENT,
+		cache_key varchar(64) NOT NULL,
+		lang varchar(5) NOT NULL,
+		response_data longtext NOT NULL,
+		created_at datetime DEFAULT CURRENT_TIMESTAMP,
+		PRIMARY KEY (id),
+		UNIQUE KEY cache_lang (cache_key, lang),
+		KEY created_at (created_at)
+	) $charset_collate;";
+	
+	require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
+	dbDelta( $sql );
+	
+	// Prüfe ob Tabelle existiert
+	$table_exists = $wpdb->get_var( "SHOW TABLES LIKE '$table_name'" ) === $table_name;
+	
+	if ( $table_exists ) {
+		wp_send_json_success( array( 
+			'message' => __( 'ChatGPT cache table created successfully!', 'asmi-search' ) 
+		) );
+	} else {
+		wp_send_json_error( array( 
+			'message' => __( 'Failed to create cache table. Please check database permissions.', 'asmi-search' ) 
+		) );
+	}
+}
+add_action( 'wp_ajax_asmi_create_chatgpt_cache_table', 'asmi_ajax_create_chatgpt_cache_table' );
 
-// Index leeren
-add_action('admin_post_asmi_clear', function(){
-  if (!current_user_can('manage_options')) wp_die('forbidden');
-  check_admin_referer('asmi_clear');
-  asmi_index_clear_table();
-  wp_safe_redirect( admin_url('admin.php?page='.ASMI_SLUG.'#tab-index') );
-  exit;
-});
+/**
+ * Ajax-Handler für ChatGPT API Test.
+ */
+function asmi_ajax_test_chatgpt() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_die( -1 );
+	}
+	
+	check_ajax_referer( 'asmi_test_chatgpt', '_wpnonce' );
+	
+	$api_key = sanitize_text_field( $_POST['api_key'] ?? '' );
+	$model = sanitize_text_field( $_POST['model'] ?? 'gpt-4o-mini' );
+	
+	if ( empty( $api_key ) ) {
+		wp_send_json_error( array( 'message' => __( 'API key is required', 'asmi-search' ) ) );
+	}
+	
+	// Test-Aufruf an ChatGPT
+	$response = wp_remote_post( 'https://api.openai.com/v1/chat/completions', array(
+		'timeout' => 10,
+		'headers' => array(
+			'Authorization' => 'Bearer ' . $api_key,
+			'Content-Type'  => 'application/json',
+		),
+		'body' => wp_json_encode( array(
+			'model' => $model,
+			'messages' => array(
+				array( 'role' => 'user', 'content' => 'Say "API connection successful" in exactly 3 words.' )
+			),
+			'max_tokens' => 10,
+			'temperature' => 0
+		) ),
+	) );
+	
+	if ( is_wp_error( $response ) ) {
+		wp_send_json_error( array( 
+			'message' => sprintf( __( 'Connection failed: %s', 'asmi-search' ), $response->get_error_message() ) 
+		) );
+	}
+	
+	$body = wp_remote_retrieve_body( $response );
+	$data = json_decode( $body, true );
+	
+	if ( isset( $data['error'] ) ) {
+		wp_send_json_error( array( 
+			'message' => sprintf( __( 'API Error: %s', 'asmi-search' ), $data['error']['message'] ?? 'Unknown error' ) 
+		) );
+	}
+	
+	if ( isset( $data['choices'][0]['message']['content'] ) ) {
+		wp_send_json_success( array( 
+			'message' => sprintf( 
+				__( 'Connection successful! Model: %s', 'asmi-search' ), 
+				$data['model'] ?? $model 
+			) 
+		) );
+	}
+	
+	wp_send_json_error( array( 'message' => __( 'Unexpected response format', 'asmi-search' ) ) );
+}
+add_action( 'wp_ajax_asmi_test_chatgpt', 'asmi_ajax_test_chatgpt' );
 
-// Repair / fehlende DB-Spalten ergänzen
-add_action('admin_post_asmi_repair', function(){
-  if (!current_user_can('manage_options')) wp_die('forbidden');
-  check_admin_referer('asmi_repair');
-  try {
-    // KORREKTUR: Ruft die neue, korrekte und zentrale Reparaturfunktion auf.
-    asmi_install_and_repair_database();
-    asmi_debug_log("Repair ausgeführt: Tabelle geprüft/ergänzt.");
-  } catch (Exception $e){
-    asmi_debug_log("Repair Fehler: ".$e->getMessage());
-  }
-  wp_safe_redirect( admin_url('admin.php?page='.ASMI_SLUG.'#tab-system') );
-  exit;
-});
-
-// Importierte Bilder löschen (Fallback)
-add_action('admin_post_asmi_delete_images', function(){
-  if (!current_user_can('manage_options')) wp_die('forbidden');
-  check_admin_referer('asmi_delete_images');
-  if (function_exists('asmi_start_image_folder_deletion')) {
-      asmi_start_image_folder_deletion();
-  }
-  wp_safe_redirect( admin_url('admin.php?page='.ASMI_SLUG.'#tab-system') );
-  exit;
-});
+/**
+ * Ajax-Handler für erzwungene Kompakt-Neuindexierung.
+ *
+ * @return void
+ */
+function asmi_ajax_force_compact_reindex() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_die( -1 );
+	}
+	
+	check_ajax_referer( 'asmi_force_reindex', '_wpnonce' );
+	
+	global $wpdb;
+	$table_name = $wpdb->prefix . ASMI_INDEX_TABLE;
+	
+	// Lösche alle nicht-manuellen WordPress-Einträge
+	$deleted = $wpdb->query( 
+		"DELETE FROM $table_name 
+		WHERE source_type = 'wordpress' 
+		AND content_hash NOT LIKE '%manual_import%'"
+	);
+	
+	asmi_debug_log( sprintf( 'Force reindex: Deleted %d old entries', $deleted ) );
+	
+	// Starte Neuindexierung
+	if ( function_exists( 'asmi_index_all_wp_content' ) ) {
+		asmi_index_all_wp_content();
+	}
+	
+	$o = asmi_get_opts();
+	$method = ! empty( $o['use_chatgpt'] ) && ! empty( $o['chatgpt_api_key'] ) ? 'ChatGPT' : 'keyword extraction';
+	
+	wp_send_json_success( array(
+		'message' => sprintf( 
+			__( 'Re-indexing complete using %s. %d old entries removed.', 'asmi-search' ), 
+			$method,
+			$deleted 
+		)
+	) );
+}
+add_action( 'wp_ajax_asmi_force_compact_reindex', 'asmi_ajax_force_compact_reindex' );

@@ -71,15 +71,32 @@ add_action( 'rest_api_init', 'asmi_register_rest_routes' );
 function asmi_rest_search( WP_REST_Request $r ) {
 	$o = asmi_get_opts();
 	$q = trim( (string) $r->get_param( 'q' ) );
-	$lang = $r->get_param( 'lang' ) ?: get_locale();
+	
+	// KORREKTUR: Explizite Sprachbehandlung mit Debug-Output
+	$lang_param = $r->get_param( 'lang' );
+	$lang = !empty($lang_param) ? $lang_param : 'de';
+	
+	// Debug-Logging für die API-Anfrage
+	asmi_debug_log("REST API search - Query: '{$q}', Language param: '{$lang_param}', Using: '{$lang}'");
+	
 	if ( mb_strlen( $q ) < 2 ) {
 		return [ 'query' => $q, 'count' => 0, 'results' => [] ];
 	}
+	
+	// WICHTIG: Übergebe die Sprache korrekt an die Suchfunktion
 	$search_data = asmi_unified_search( $q, (int) $o['max_results'], $lang );
-	return [
-		'query' => $q, 'count' => count($search_data['products']) + count($search_data['wordpress']),
+	
+	$response = [
+		'query' => $q,
+		'lang' => $lang,  // KORREKTUR: Sprache in Response für Debugging
+		'count' => count($search_data['products']) + count($search_data['wordpress']),
 		'results' => $search_data,
 	];
+	
+	// Debug-Logging der Response
+	asmi_debug_log("REST API response - Products: " . count($search_data['products']) . ", WordPress: " . count($search_data['wordpress']));
+	
+	return $response;
 }
 function asmi_rest_get_status() {
 	return new WP_REST_Response([ 'state' => asmi_get_index_state(), 'stats' => asmi_get_index_stats() ], 200 );

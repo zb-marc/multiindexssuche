@@ -2,7 +2,7 @@
 /**
  * Plugin Name: AS Multiindex Search
  * Description: Eine föderierte Suche, die native WordPress-Inhalte und mehrsprachige, externe Produktfeeds (XML, CSV, JSON) in jeder AJAX-Suche nahtlos zusammenführt.
- * Version:     1.5.1
+ * Version:     1.9.0
  * Author:      Marc Mirschel
  * Author URI:  https://mirschel.biz
  * Plugin URI:  https://akkusys.de
@@ -16,7 +16,7 @@
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 // Plugin-Konstanten.
-define( 'ASMI_VERSION', '1.5.1' );
+define( 'ASMI_VERSION', '1.9.0' );
 define( 'ASMI_OPT', 'asmi_options' );
 define( 'ASMI_SLUG', 'asmi-settings' );
 define( 'ASMI_REST_NS', 'asmi/v1' );
@@ -40,6 +40,7 @@ function asmi_include_files() {
 	$inc_path    = plugin_dir_path( __FILE__ ) . 'includes/';
 	$indexing_path = $inc_path . 'indexing/';
 	$admin_ui_path = $inc_path . 'admin-ui/';
+	$api_path = $inc_path . 'api/';
 
 	// Kern-Dateien
 	require_once $inc_path . 'core.php';
@@ -51,6 +52,12 @@ function asmi_include_files() {
 	require_once $inc_path . 'admin-actions.php';
 	require_once $inc_path . 'warmup.php';
 	require_once $inc_path . 'search.php';
+	require_once $inc_path . 'import-export.php';
+
+	// API-Handler (NEU!)
+	if ( file_exists( $api_path . 'chatgpt-handler.php' ) ) {
+		require_once $api_path . 'chatgpt-handler.php';
+	}
 
 	// Indexierungs-Komponenten
 	require_once $indexing_path . 'state.php';
@@ -68,7 +75,7 @@ function asmi_include_files() {
 }
 asmi_include_files();
 
-
+// Rest des Codes bleibt unverändert...
 /**
  * Wird bei der Aktivierung des Plugins ausgeführt.
  *
@@ -99,7 +106,6 @@ function asmi_deactivate_plugin() {
 	wp_clear_scheduled_hook( 'asmi_cron_wp_content_index' );
 }
 register_deactivation_hook( __FILE__, 'asmi_deactivate_plugin' );
-
 
 /**
  * Wird bei der Deinstallation des Plugins ausgeführt.

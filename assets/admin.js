@@ -10,7 +10,7 @@ jQuery(function($){
       this.initActions();
       this.initModal();
       this.initDataTabs();
-      this.initMediaUploader(); // KORREKTUR: Initialisierung der neuen Funktion
+      this.initMediaUploader();
       
       if ($('.nav-tab-wrapper .nav-tab-active[href="#tab-index"]').length || $('.nav-tab-wrapper .nav-tab-active[href="#tab-system"]').length) {
         this.updateStatus();
@@ -23,7 +23,6 @@ jQuery(function($){
       }
     },
 
-    // NEUE FUNKTION: Öffnet die WordPress-Mediathek
     initMediaUploader: function() {
         $(document).on('click', '.asmi-upload-btn', function(e) {
             e.preventDefault();
@@ -63,11 +62,19 @@ jQuery(function($){
 
         window.location.hash = target.substring(1);
 
-        if (target === '#tab-index' || target === '#tab-system') {
+        // KORREKTUR: Zeige/Verstecke die Export/Import-Formulare beim System-Tab
+        if (target === '#tab-system') {
+          $('#asmi-system-extra-forms').show();
           self.updateStatus();
           self.startPolling();
         } else {
-          self.stopPolling();
+          $('#asmi-system-extra-forms').hide();
+          if (target === '#tab-index') {
+            self.updateStatus();
+            self.startPolling();
+          } else {
+            self.stopPolling();
+          }
         }
       });
 

@@ -3,14 +3,24 @@
     var xhr;
     var $modal, $backdrop, $input, $resultsContainer, $closeBtn;
     var scrollPosition = 0;
+    var currentLang = 'de'; // KORREKTUR: Variable für aktuelle Sprache
 
-    function openModal() {
+    function openModal(triggerElement) {
+        // KORREKTUR: Sprache vom auslösenden Element lesen
+        if (triggerElement && $(triggerElement).data('lang')) {
+            currentLang = $(triggerElement).data('lang');
+            console.log('Modal opened with language:', currentLang);
+        }
+        
         scrollPosition = $(window).scrollTop();
         $('html').addClass('asmi-modal-open');
         $('body').addClass('asmi-modal-open').css('top', -scrollPosition + 'px');
         
         $backdrop.addClass('is-active');
         $modal.addClass('is-active');
+        
+        // KORREKTUR: Setze die Sprache am Modal für spätere Referenz
+        $modal.attr('data-current-lang', currentLang);
         
         setTimeout(function() {
             $input.focus();
@@ -24,6 +34,10 @@
 
         $backdrop.removeClass('is-active');
         $modal.removeClass('is-active');
+        
+        // Clear results when closing
+        $resultsContainer.empty().hide();
+        $input.val('');
     }
 
     function init() {
@@ -37,7 +51,11 @@
             closeModal();
         }
 
-        $(document).on('click', '#asmi-modal-trigger-icon, .asmi-modal-trigger', openModal);
+        // KORREKTUR: Event-Handler überarbeitet, um das auslösende Element zu erfassen
+        $(document).on('click', '.asmi-modal-trigger', function(e) {
+            e.preventDefault();
+            openModal(this);
+        });
 
         $closeBtn.on('click', closeModal);
         $backdrop.on('click', closeModal);
@@ -75,14 +93,20 @@
         }
         
         $resultsContainer.html('<div class="asmi-spinner"></div>').show();
+        
+        // KORREKTUR: Verwende die aktuelle Sprache aus der Variable oder vom Modal-Attribut
+        var searchLang = $modal.attr('data-current-lang') || currentLang || 'de';
+        
+        console.log('Performing search with language:', searchLang, 'Term:', term);
 
         xhr = $.ajax({
             url: ASMI.endpoint,
             data: { 
                 q: term,
-                lang: ASMI.lang
+                lang: searchLang  // KORREKTUR: Verwende die korrekte Sprache
             },
             success: function(response) {
+                console.log('Search response received. Products:', response.results.products.length, 'WordPress:', response.results.wordpress.length);
                 renderResults(response, term);
             },
             error: function(jqXHR) {
@@ -93,7 +117,6 @@
         });
     }
 
-    // KORRIGIERTE FUNKTION
     function renderItem(item) {
         var titleAttr = (item.title || '').replace(/"/g, '&quot;');
         var img = item.image ? '<img src="' + item.image + '" alt="' + titleAttr + '" loading="lazy"/>' : '<span class="asmi-result-no-image"></span>';
@@ -104,7 +127,6 @@
             finalUrl += connector + ASMI.utmParameters;
         }
 
-        // NEU: Logik für die Anzeige von Produktdetails
         var detailsHtml = '';
         if (item.source === 'product') {
             detailsHtml += '<div class="asmi-product-details">';
