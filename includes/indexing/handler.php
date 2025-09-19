@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @return void
  */
 function asmi_index_tick_handler() {
-	asmi_run_db_install();
+	asmi_install_and_repair_database();
 	$state = asmi_get_index_state();
 	if ( 'idle' === $state['status'] || 'finished' === $state['status'] ) {
 		return;

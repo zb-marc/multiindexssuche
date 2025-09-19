@@ -2,7 +2,7 @@
 /**
  * Plugin Name: AS Multiindex Search
  * Description: Eine föderierte Suche, die native WordPress-Inhalte und mehrsprachige, externe Produktfeeds (XML, CSV, JSON) in jeder AJAX-Suche nahtlos zusammenführt.
- * Version:     1.9.1
+ * Version:     1.9.2
  * Author:      Marc Mirschel
  * Author URI:  https://mirschel.biz
  * Plugin URI:  https://akkusys.de
@@ -16,7 +16,7 @@
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 // Plugin-Konstanten.
-define( 'ASMI_VERSION', '1.9.1' );
+define( 'ASMI_VERSION', '1.9.2' );
 define( 'ASMI_OPT', 'asmi_options' );
 define( 'ASMI_SLUG', 'asmi-settings' );
 define( 'ASMI_REST_NS', 'asmi/v1' );
@@ -54,7 +54,7 @@ function asmi_include_files() {
 	require_once $inc_path . 'search.php';
 	require_once $inc_path . 'import-export.php';
 
-	// API-Handler (NEU!)
+	// API-Handler
 	if ( file_exists( $api_path . 'chatgpt-handler.php' ) ) {
 		require_once $api_path . 'chatgpt-handler.php';
 	}
@@ -75,7 +75,6 @@ function asmi_include_files() {
 }
 asmi_include_files();
 
-// Rest des Codes bleibt unverändert...
 /**
  * Wird bei der Aktivierung des Plugins ausgeführt.
  *
@@ -129,6 +128,15 @@ function asmi_uninstall_plugin() {
 register_uninstall_hook( __FILE__, 'asmi_uninstall_plugin' );
 
 /**
- * Stellt sicher, dass die DB-Tabelle bei jedem Laden existiert und korrekt ist.
+ * Stellt sicher, dass die DB-Tabelle bei jedem Plugin-Update repariert wird.
+ * Prüft die gespeicherte Version und führt bei Unterschieden eine Reparatur durch.
  */
-add_action( 'plugins_loaded', 'asmi_install_and_repair_database', 10 );
+function asmi_check_db_version() {
+	$installed_ver = get_option( ASMI_DB_VER_OPT );
+	
+	if ( $installed_ver !== ASMI_VERSION ) {
+		asmi_install_and_repair_database();
+		asmi_debug_log( 'Database structure updated from version ' . $installed_ver . ' to ' . ASMI_VERSION );
+	}
+}
+add_action( 'plugins_loaded', 'asmi_check_db_version', 10 );

@@ -19,7 +19,8 @@ function asmi_render_admin() {
 		return;
 	}
 
-	asmi_run_db_install();
+	// KORREKTUR: Stelle sicher, dass die DB-Struktur korrekt ist
+	asmi_install_and_repair_database();
 
 	$o = asmi_get_opts();
 
