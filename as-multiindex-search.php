@@ -2,7 +2,7 @@
 /**
  * Plugin Name: AS Multiindex Search
  * Description: Eine föderierte Suche, die native WordPress-Inhalte und mehrsprachige, externe Produktfeeds (XML, CSV, JSON) in jeder AJAX-Suche nahtlos zusammenführt.
- * Version:     1.9.2
+ * Version:     1.9.3
  * Author:      Marc Mirschel
  * Author URI:  https://mirschel.biz
  * Plugin URI:  https://akkusys.de
@@ -16,7 +16,7 @@
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 // Plugin-Konstanten.
-define( 'ASMI_VERSION', '1.9.2' );
+define( 'ASMI_VERSION', '1.9.3' );
 define( 'ASMI_OPT', 'asmi_options' );
 define( 'ASMI_SLUG', 'asmi-settings' );
 define( 'ASMI_REST_NS', 'asmi/v1' );
@@ -24,11 +24,13 @@ define( 'ASMI_REST_ROUTE', 'search' );
 define( 'ASMI_INDEX_TICK_ACTION', 'asmi_do_index_tick' );
 define( 'ASMI_DELETE_TICK_ACTION', 'asmi_do_delete_tick' );
 define( 'ASMI_IMAGE_DELETE_TICK_ACTION', 'asmi_do_image_delete_tick' );
+define( 'ASMI_WP_INDEX_TICK_ACTION', 'asmi_do_wp_index_tick' );
 define( 'ASMI_ASSETS', plugin_dir_url( __FILE__ ) . 'assets/' );
 define( 'ASMI_INDEX_TABLE', 'asmi_index' );
 define( 'ASMI_INDEX_STATE_OPT', 'asmi_index_state' );
 define( 'ASMI_DELETE_STATE_OPT', 'asmi_delete_state' );
 define( 'ASMI_IMAGE_DELETE_STATE_OPT', 'asmi_image_delete_state' );
+define( 'ASMI_WP_INDEX_STATE_OPT', 'asmi_wp_index_state' );
 define( 'ASMI_DB_VER_OPT', 'asmi_db_version' );
 define( 'ASMI_SETTINGS_GROUP', 'asmi_settings' );
 define( 'ASMI_UPLOAD_DIR', 'as-multiindex-search' );
@@ -101,6 +103,7 @@ function asmi_deactivate_plugin() {
 	wp_clear_scheduled_hook( ASMI_INDEX_TICK_ACTION );
 	wp_clear_scheduled_hook( ASMI_DELETE_TICK_ACTION );
 	wp_clear_scheduled_hook( ASMI_IMAGE_DELETE_TICK_ACTION );
+	wp_clear_scheduled_hook( ASMI_WP_INDEX_TICK_ACTION );
 	wp_clear_scheduled_hook( 'asmi_cron_reindex' );
 	wp_clear_scheduled_hook( 'asmi_cron_wp_content_index' );
 }
@@ -116,6 +119,7 @@ function asmi_uninstall_plugin() {
 	delete_option( ASMI_INDEX_STATE_OPT );
 	delete_option( ASMI_DELETE_STATE_OPT );
 	delete_option( ASMI_IMAGE_DELETE_STATE_OPT );
+	delete_option( ASMI_WP_INDEX_STATE_OPT );
 	delete_option( ASMI_DB_VER_OPT );
 	delete_option( 'asmi_tick_token' );
 	global $wpdb;

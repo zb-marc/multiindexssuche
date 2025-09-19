@@ -61,10 +61,10 @@ function asmi_enqueue_frontend_assets() {
 				'product_search_url' => esc_url( $o['product_search_url'] ),
 				'wp_search_url'      => esc_url( home_url( '/?s=%s' ) ),
 				'labels'             => array(
-					'no_results'        => __( 'No results found.', 'asmi-search' ),
-					'searching'         => __( 'Searching...', 'asmi-search' ),
-					'view_all_wp'       => __( 'View all information', 'asmi-search' ),
-					'view_all_products' => __( 'View all products', 'asmi-search' ),
+					'no_results'        => __( 'Keine Ergebnisse gefunden.', 'asmi-search' ),
+					'searching'         => __( 'Suche...', 'asmi-search' ),
+					'view_all_wp'       => __( 'Alle Informationen anzeigen', 'asmi-search' ),
+					'view_all_products' => __( 'Alle Produkte anzeigen', 'asmi-search' ),
 				),
 			)
 		);

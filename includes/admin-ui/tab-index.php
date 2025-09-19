@@ -22,6 +22,7 @@ function asmi_render_tab_index( $o, $nonces ) {
 	<h2><?php esc_html_e( 'Index Control', 'asmi-search' ); ?></h2>
 	<p><?php esc_html_e( 'Manage the import of external product feeds and the indexing of your WordPress content here.', 'asmi-search' ); ?></p>
 
+	<!-- Feed-Indexierung Dashboard -->
 	<div id="asmi-status-dashboard" class="asmi-status-dashboard">
 		<div class="asmi-status-overview">
 			<h3><span class="asmi-status-text">...</span></h3>
@@ -58,6 +59,53 @@ function asmi_render_tab_index( $o, $nonces ) {
 		</div>
 	</div>
 
+	<!-- WordPress-Indexierung Dashboard -->
+	<div id="asmi-wp-status-dashboard" class="asmi-status-dashboard" style="display:none;">
+		<div class="asmi-status-overview">
+			<h3><span class="asmi-wp-status-text"><?php esc_html_e( 'WordPress Content Processing', 'asmi-search' ); ?></span></h3>
+			<div class="asmi-status-total-count">
+				<span class="asmi-wp-stats-processed">0</span>
+				<br>
+				<small><?php esc_html_e( 'Posts Processed', 'asmi-search' ); ?></small>
+			</div>
+			<div class="asmi-status-total-count">
+				<span class="asmi-wp-stats-total">0</span>
+				<br>
+				<small><?php esc_html_e( 'Total Posts', 'asmi-search' ); ?></small>
+			</div>
+		</div>
+
+		<div class="asmi-wp-process-details" style="display:none;">
+			<p style="margin-top:0;"><strong><span class="asmi-wp-process-title"></span></strong></p>
+			<div class="asmi-progress-bar-total"><div class="asmi-wp-progress-bar-inner"></div></div>
+			<p>
+				<strong><?php esc_html_e( 'Progress:', 'asmi-search' ); ?></strong>
+				<span class="asmi-wp-state-done">0</span> / <span class="asmi-wp-state-total">0</span> (<span class="asmi-wp-state-pct">0</span>%)
+			</p>
+			<div id="asmi-wp-current-post" style="font-size: 12px; margin: 10px 0; padding: 8px; background: #f9f9f9; border-left: 3px solid #0073aa;">
+				<strong><?php esc_html_e( 'Current:', 'asmi-search' ); ?></strong> <span class="asmi-wp-current-title">-</span><br>
+				<strong><?php esc_html_e( 'Language:', 'asmi-search' ); ?></strong> <span class="asmi-wp-current-lang">-</span>
+			</div>
+			<div id="asmi-wp-stats-container" style="display: flex; gap: 15px; font-size: 12px; margin: 10px 0;">
+				<div>ChatGPT: <strong><span class="asmi-wp-chatgpt-used">0</span></strong></div>
+				<div>Fallback: <strong><span class="asmi-wp-fallback-used">0</span></strong></div>
+				<div style="color: #d63638;">Timeouts: <strong><span class="asmi-wp-timeout-errors">0</span></strong></div>
+				<div style="color: #d63638;">API Errors: <strong><span class="asmi-wp-api-errors">0</span></strong></div>
+				<div style="color: #46b450;">Protected: <strong><span class="asmi-wp-manually-imported">0</span></strong></div>
+			</div>
+			<p><small>
+				<strong><?php esc_html_e( 'Started:', 'asmi-search' ); ?></strong> <span class="asmi-wp-state-started">...</span> |
+				<strong><?php esc_html_e( 'Duration:', 'asmi-search' ); ?></strong> <span class="asmi-wp-state-duration">...</span>
+			</small></p>
+			<p style="color:#d63638; display:none;" class="asmi-wp-state-error-p"><strong><?php esc_html_e( 'Error:', 'asmi-search' ); ?></strong> <span class="asmi-wp-state-error"></span></p>
+		</div>
+
+		<div class="asmi-wp-last-run-summary" style="display:none;">
+			<h4><?php esc_html_e( 'Summary of the last WordPress indexing', 'asmi-search' ); ?></h4>
+			<ul class="asmi-wp-summary-list"></ul>
+		</div>
+	</div>
+
 	<table class="form-table">
 		<tr>
 			<th><?php esc_html_e( 'Indexing Options', 'asmi-search' ); ?></th>
@@ -89,12 +137,25 @@ function asmi_render_tab_index( $o, $nonces ) {
 		<tr>
 			<th><?php esc_html_e( 'Actions', 'asmi-search' ); ?></th>
 			<td>
-				<button id="asmi-reindex-button" type="button" class="button button-primary" data-action="reindex" data-nonce="<?php echo esc_attr( $nonces['reindex'] ); ?>" data-confirm-msg="<?php esc_attr_e( 'Are you sure you want to completely re-import all products from the feeds?', 'asmi-search' ); ?>"><?php esc_html_e( 'Re-import Feed Products', 'asmi-search' ); ?></button>
-				<button id="asmi-reindex-wp-button" type="button" class="button" data-action="reindex_wp" data-nonce="<?php echo esc_attr( $nonces['reindex'] ); ?>" data-confirm-msg="<?php esc_attr_e( 'Are you sure you want to re-index all WordPress content?', 'asmi-search' ); ?>"><?php esc_html_e( 'Re-index WordPress Content', 'asmi-search' ); ?></button>
-				
-				<button id="asmi-clear-button" type="button" class="button" data-action="clear" data-nonce="<?php echo esc_attr( $nonces['clear'] ); ?>" data-confirm-msg="<?php esc_attr_e( 'Are you sure you want to permanently delete the entire search index (all products and WordPress content)? This action cannot be undone.', 'asmi-search' ); ?>"><?php esc_html_e( 'Delete Index', 'asmi-search' ); ?></button>
-				
-				<button id="asmi-cancel-button" type="button" class="button button-secondary" style="display:none;" data-action="cancel" data-nonce="<?php echo esc_attr( $nonces['cancel'] ); ?>"><?php esc_html_e( 'Cancel', 'asmi-search' ); ?></button>
+				<!-- Feed-Indexierung Buttons -->
+				<div style="margin-bottom: 15px;">
+					<h4 style="margin: 0 0 8px 0;"><?php esc_html_e( 'Product Feeds', 'asmi-search' ); ?></h4>
+					<button id="asmi-reindex-button" type="button" class="button button-primary" data-action="reindex" data-nonce="<?php echo esc_attr( $nonces['reindex'] ); ?>" data-confirm-msg="<?php esc_attr_e( 'Are you sure you want to completely re-import all products from the feeds?', 'asmi-search' ); ?>"><?php esc_html_e( 'Re-import Feed Products', 'asmi-search' ); ?></button>
+					<button id="asmi-cancel-button" type="button" class="button button-secondary" style="display:none;" data-action="cancel" data-nonce="<?php echo esc_attr( $nonces['cancel'] ); ?>"><?php esc_html_e( 'Cancel Feed Import', 'asmi-search' ); ?></button>
+				</div>
+
+				<!-- WordPress-Indexierung Buttons -->
+				<div style="margin-bottom: 15px;">
+					<h4 style="margin: 0 0 8px 0;"><?php esc_html_e( 'WordPress Content', 'asmi-search' ); ?></h4>
+					<button id="asmi-reindex-wp-button" type="button" class="button button-primary" data-action="reindex_wp" data-nonce="<?php echo esc_attr( $nonces['reindex'] ); ?>" data-confirm-msg="<?php esc_attr_e( 'Are you sure you want to re-index all WordPress content? This will process all posts with ChatGPT if configured.', 'asmi-search' ); ?>"><?php esc_html_e( 'Re-index WordPress Content', 'asmi-search' ); ?></button>
+					<button id="asmi-cancel-wp-button" type="button" class="button button-secondary" style="display:none;" data-action="cancel_wp" data-nonce="<?php echo esc_attr( $nonces['cancel'] ); ?>"><?php esc_html_e( 'Cancel WP Indexing', 'asmi-search' ); ?></button>
+				</div>
+
+				<!-- Andere Aktionen -->
+				<div>
+					<h4 style="margin: 0 0 8px 0;"><?php esc_html_e( 'Other Actions', 'asmi-search' ); ?></h4>
+					<button id="asmi-clear-button" type="button" class="button" data-action="clear" data-nonce="<?php echo esc_attr( $nonces['clear'] ); ?>" data-confirm-msg="<?php esc_attr_e( 'Are you sure you want to permanently delete the entire search index (all products and WordPress content)? This action cannot be undone.', 'asmi-search' ); ?>"><?php esc_html_e( 'Delete Index', 'asmi-search' ); ?></button>
+				</div>
 			</td>
 		</tr>
 	</table>

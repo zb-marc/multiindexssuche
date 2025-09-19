@@ -79,6 +79,68 @@
     border-bottom: 1px dotted #646970;
 }
 
+/* WordPress-Index Dashboard spezifische Styles */
+#asmi-wp-status-dashboard .asmi-wp-stats-processed,
+#asmi-wp-status-dashboard .asmi-wp-stats-total {
+    font-size: 24px;
+    font-weight: 600;
+    color: #0073aa;
+}
+
+.asmi-wp-last-run-summary ul {
+    list-style: disc;
+    margin-left: 20px;
+}
+
+/* Progress Bar Styles */
+.asmi-progress-bar-total {
+    width: 100%;
+    height: 20px;
+    background-color: #f0f0f0;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 10px 0;
+}
+
+.asmi-progress-bar-inner,
+.asmi-wp-progress-bar-inner {
+    height: 100%;
+    background-color: #2271b1;
+    transition: width 0.3s ease;
+    border-radius: 10px;
+}
+
+/* WordPress Progress Bar */
+.asmi-wp-process-details .asmi-progress-bar-total {
+    background-color: #f0f0f0;
+}
+
+#asmi-wp-current-post {
+    font-size: 12px;
+    margin: 10px 0;
+    padding: 8px;
+    background: #f9f9f9;
+    border-left: 3px solid #0073aa;
+    border-radius: 0 3px 3px 0;
+}
+
+#asmi-wp-stats-container {
+    display: flex;
+    gap: 15px;
+    font-size: 12px;
+    margin: 10px 0;
+    padding: 8px;
+    background: #fff;
+    border: 1px solid #e5e5e5;
+    border-radius: 3px;
+}
+
+#asmi-wp-stats-container > div {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
 
 /* Toggle switch */
 .as-glossar-toggle-switch {

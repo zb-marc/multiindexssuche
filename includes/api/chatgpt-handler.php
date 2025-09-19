@@ -236,9 +236,9 @@ function asmi_process_with_chatgpt( $title, $content, $target_lang = 'de' ) {
 	$system_prompt = asmi_get_chatgpt_system_prompt();
 	$user_prompt = asmi_get_chatgpt_user_prompt( $title, $clean_content, $target_lang );
 	
-	// API-Aufruf
+	// API-Aufruf mit robusterem Timeout-Management
 	$response = wp_remote_post( 'https://api.openai.com/v1/chat/completions', array(
-		'timeout' => 30,
+		'timeout' => 45, // Erhöht von 30 auf 45 Sekunden
 		'headers' => array(
 			'Authorization' => 'Bearer ' . $api_key,
 			'Content-Type'  => 'application/json',
@@ -256,7 +256,14 @@ function asmi_process_with_chatgpt( $title, $content, $target_lang = 'de' ) {
 	) );
 	
 	if ( is_wp_error( $response ) ) {
-		asmi_debug_log( 'ChatGPT API Error: ' . $response->get_error_message() );
+		$error_message = $response->get_error_message();
+		asmi_debug_log( 'ChatGPT API Error: ' . $error_message );
+		
+		// Spezifische Timeout-Behandlung
+		if ( strpos( $error_message, 'cURL error 28' ) !== false ) {
+			return new WP_Error( 'chatgpt_timeout', 'ChatGPT API timeout - server too slow to respond' );
+		}
+		
 		return $response;
 	}
 	
@@ -374,7 +381,7 @@ Return ONLY valid JSON matching the format above.";
 }
 
 /**
- * Cached ChatGPT-Verarbeitung mit Datenbank-Speicherung.
+ * Robuste Cached ChatGPT-Verarbeitung mit verbessertem Timeout-Management.
  *
  * @param string $title Der Titel.
  * @param string $content Der Inhalt.
@@ -382,7 +389,7 @@ Return ONLY valid JSON matching the format above.";
  * @param string $cache_key Eindeutiger Cache-Schlüssel.
  * @return array|WP_Error Verarbeitete Daten oder Fehler.
  */
-function asmi_process_with_chatgpt_cached( $title, $content, $target_lang, $cache_key ) {
+function asmi_process_with_chatgpt_cached_robust( $title, $content, $target_lang, $cache_key ) {
 	global $wpdb;
 	$table_name = $wpdb->prefix . 'asmi_chatgpt_cache';
 	
@@ -404,27 +411,66 @@ function asmi_process_with_chatgpt_cached( $title, $content, $target_lang, $cach
 		return json_decode( $cached, true );
 	}
 	
-	// Verarbeite mit Assistant wenn konfiguriert, sonst mit ChatGPT
-	$o = asmi_get_opts();
-	if ( ! empty( $o['chatgpt_assistant_id'] ) ) {
-		asmi_debug_log( 'Using Assistant: ' . $o['chatgpt_assistant_id'] );
-		$result = asmi_process_with_assistant( $title, $content, $target_lang );
-	} else {
-		asmi_debug_log( 'Using direct ChatGPT API' );
-		$result = asmi_process_with_chatgpt( $title, $content, $target_lang );
+	// Retry-Mechanismus für Timeouts
+	$max_retries = 2;
+	$retry_count = 0;
+	$last_error = null;
+	
+	while ( $retry_count <= $max_retries ) {
+		// Verarbeite mit Assistant wenn konfiguriert, sonst mit ChatGPT
+		$o = asmi_get_opts();
+		if ( ! empty( $o['chatgpt_assistant_id'] ) ) {
+			asmi_debug_log( 'Using Assistant: ' . $o['chatgpt_assistant_id'] . ' (Attempt: ' . ($retry_count + 1) . ')' );
+			$result = asmi_process_with_assistant( $title, $content, $target_lang );
+		} else {
+			asmi_debug_log( 'Using direct ChatGPT API (Attempt: ' . ($retry_count + 1) . ')' );
+			$result = asmi_process_with_chatgpt( $title, $content, $target_lang );
+		}
+		
+		// Bei Erfolg Cache speichern und zurückgeben
+		if ( ! is_wp_error( $result ) ) {
+			// Speichere in Cache
+			$wpdb->replace( $table_name, array(
+				'cache_key'     => $cache_key,
+				'lang'          => $target_lang,
+				'response_data' => wp_json_encode( $result ),
+				'created_at'    => current_time( 'mysql' )
+			) );
+			
+			asmi_debug_log( "ChatGPT processing successful on attempt " . ($retry_count + 1) );
+			return $result;
+		}
+		
+		$last_error = $result;
+		$error_message = $result->get_error_message();
+		
+		// Bei Timeout-Fehlern retry, bei anderen Fehlern sofort abbrechen
+		if ( strpos( $error_message, 'cURL error 28' ) !== false || 
+		     strpos( $error_message, 'timeout' ) !== false ) {
+			$retry_count++;
+			if ( $retry_count <= $max_retries ) {
+				$wait_time = $retry_count * 3; // 3, 6 Sekunden warten
+				asmi_debug_log( "ChatGPT timeout on attempt $retry_count, retrying in {$wait_time} seconds..." );
+				sleep( $wait_time );
+				continue;
+			}
+		} else {
+			// Andere API-Fehler - sofort abbrechen
+			asmi_debug_log( "ChatGPT API error (non-timeout): $error_message" );
+			break;
+		}
 	}
 	
-	if ( ! is_wp_error( $result ) ) {
-		// Speichere in Cache
-		$wpdb->replace( $table_name, array(
-			'cache_key'     => $cache_key,
-			'lang'          => $target_lang,
-			'response_data' => wp_json_encode( $result ),
-			'created_at'    => current_time( 'mysql' )
-		) );
-	}
-	
-	return $result;
+	// Alle Versuche fehlgeschlagen
+	asmi_debug_log( "ChatGPT processing failed after " . ($retry_count) . " attempts" );
+	return $last_error;
+}
+
+/**
+ * Alias für Rückwärtskompatibilität.
+ */
+function asmi_process_with_chatgpt_cached( $title, $content, $target_lang, $cache_key ) {
+	return asmi_process_with_chatgpt_cached_robust( $title, $content, $target_lang, $cache_key );
 }
 
 /**

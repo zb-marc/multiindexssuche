@@ -60,6 +60,9 @@ function asmi_defaults() {
 		
 		// Custom Brands
 		'custom_brand_names'     => '',
+		
+		// WordPress-Indexierung
+		'wp_index_batch_size'    => 5, // Kleinere Batches für stabilere ChatGPT-Anfragen
 	);
 }
 
@@ -212,6 +215,9 @@ function asmi_sanitize_options( $in ) {
 	
 	// Custom Brands
 	$out['custom_brand_names'] = isset( $in['custom_brand_names'] ) ? sanitize_text_field( $in['custom_brand_names'] ) : '';
+	
+	// WordPress-Indexierung
+	$out['wp_index_batch_size'] = max( 1, min( 10, absint( $in['wp_index_batch_size'] ?? $defaults['wp_index_batch_size'] ) ) );
 
 	// Checkboxes
 	$out['enable_daily_reindex'] = ! empty( $in['enable_daily_reindex'] ) ? 1 : 0;

@@ -2,6 +2,7 @@ jQuery(function($){
   var asmiAdmin = {
     nonces: {},
     pollingInterval: null,
+    wpPollingInterval: null,
     confirmCallback: null,
 
     init: function() {
@@ -14,7 +15,9 @@ jQuery(function($){
       
       if ($('.nav-tab-wrapper .nav-tab-active[href="#tab-index"]').length || $('.nav-tab-wrapper .nav-tab-active[href="#tab-system"]').length) {
         this.updateStatus();
+        this.updateWpStatus();
         this.startPolling();
+        this.startWpPolling();
       } else {
          var hash = window.location.hash;
          if (hash.startsWith('#tab-')) {
@@ -71,9 +74,12 @@ jQuery(function($){
           $('#asmi-system-extra-forms').hide();
           if (target === '#tab-index') {
             self.updateStatus();
+            self.updateWpStatus();
             self.startPolling();
+            self.startWpPolling();
           } else {
             self.stopPolling();
+            self.stopWpPolling();
           }
         }
       });
@@ -111,8 +117,9 @@ jQuery(function($){
           var performAction = function() {
               var endpoints = {
                   'reindex': { url: '/wp-json/asmi/v1/index/reindex', msg: 'Feed-Import gestartet...' },
-                  'reindex_wp': { url: '/wp-json/asmi/v1/index/reindex-wp', msg: 'WordPress-Inhalte wurden neu indexiert.' },
-                  'cancel': { url: '/wp-json/asmi/v1/index/cancel', msg: 'Prozess wird abgebrochen...' },
+                  'reindex_wp': { url: '/wp-json/asmi/v1/wp-index/start', msg: 'WordPress-Indexierung gestartet...' },
+                  'cancel': { url: '/wp-json/asmi/v1/index/cancel', msg: 'Feed-Prozess wird abgebrochen...' },
+                  'cancel_wp': { url: '/wp-json/asmi/v1/wp-index/cancel', msg: 'WordPress-Indexierung wird abgebrochen...' },
                   'clear': { url: '/wp-json/asmi/v1/index/clear', msg: 'Index wird geleert...' },
                   'delete_images': { url: '/wp-json/asmi/v1/images/delete/start', msg: 'Löschen der Bilder gestartet...' },
                   'db_repair': { url: '/wp-json/asmi/v1/db/repair', msg: 'Datenbank-Reparatur abgeschlossen.' }
@@ -142,7 +149,9 @@ jQuery(function($){
             success: function(response) {
                 self.showNotice(successMessage, 'success');
                 self.updateStatus();
+                self.updateWpStatus();
                 self.startPolling();
+                self.startWpPolling();
             },
             error: function(jqXHR) {
                 var errorMsg = 'Ein Fehler ist aufgetreten.';
@@ -199,6 +208,17 @@ jQuery(function($){
       clearInterval(this.pollingInterval);
       this.pollingInterval = null;
     },
+
+    startWpPolling: function() {
+      if(this.wpPollingInterval) return;
+      var self = this;
+      this.wpPollingInterval = setInterval(function() { self.updateWpStatus(); }, 5000);
+    },
+
+    stopWpPolling: function() {
+      clearInterval(this.wpPollingInterval);
+      this.wpPollingInterval = null;
+    },
     
     updateStatus: function() {
         var self = this;
@@ -207,6 +227,20 @@ jQuery(function($){
             $.ajax({ url: '/wp-json/asmi/v1/images/delete/status', method: 'GET', beforeSend: function(xhr){ xhr.setRequestHeader('X-WP-Nonce', self.nonces.delete_status); }})
         ).done(function(indexResp, imageDeleteResp){
             self.updateDashboard(indexResp[0], imageDeleteResp ? imageDeleteResp[0] : {});
+        });
+    },
+
+    updateWpStatus: function() {
+        var self = this;
+        $.ajax({
+            url: '/wp-json/asmi/v1/wp-index/status',
+            method: 'GET',
+            beforeSend: function(xhr) {
+                xhr.setRequestHeader('X-WP-Nonce', self.nonces.status);
+            },
+            success: function(response) {
+                self.updateWpDashboard(response.state || {});
+            }
         });
     },
 
@@ -234,7 +268,7 @@ jQuery(function($){
         var $process = $dashboard.find('.asmi-process-details');
         var $summary = $dashboard.find('.asmi-last-run-summary');
         
-        var $buttons = $('#asmi-reindex-button, #asmi-reindex-wp-button, #asmi-clear-button, #asmi-delete-images-button, #asmi-db-repair-button');
+        var $buttons = $('#asmi-reindex-button, #asmi-clear-button, #asmi-delete-images-button, #asmi-db-repair-button');
 
         $process.hide();
         $summary.hide();
@@ -291,6 +325,71 @@ jQuery(function($){
         }
     },
 
+    updateWpDashboard: function(wpState) {
+        var $dashboard = $('#asmi-wp-status-dashboard');
+        var $overview = $dashboard.find('.asmi-status-overview h3 .asmi-wp-status-text');
+        var $process = $dashboard.find('.asmi-wp-process-details');
+        var $summary = $dashboard.find('.asmi-wp-last-run-summary');
+        
+        var $buttons = $('#asmi-reindex-wp-button');
+
+        $process.hide();
+        $summary.hide();
+        $buttons.prop('disabled', false);
+        $('#asmi-cancel-wp-button').hide();
+
+        $dashboard.find('.asmi-wp-stats-processed').text(wpState.processed_posts || 0);
+        $dashboard.find('.asmi-wp-stats-total').text(wpState.total_posts || 0);
+
+        if (wpState.status === 'indexing') {
+            $dashboard.show();
+            $('#asmi-cancel-wp-button').show();
+            $overview.html('<span class="dashicons dashicons-update-alt"></span> WordPress Content wird verarbeitet');
+            
+            this.renderWpProgressBar($process, wpState);
+            $buttons.prop('disabled', true);
+            
+            // Update current post info
+            $process.find('.asmi-wp-current-title').text(wpState.current_post_title || '-');
+            $process.find('.asmi-wp-current-lang').text(wpState.current_lang || '-');
+            
+            // Update statistics
+            $process.find('.asmi-wp-chatgpt-used').text(wpState.chatgpt_used || 0);
+            $process.find('.asmi-wp-fallback-used').text(wpState.fallback_used || 0);
+            $process.find('.asmi-wp-timeout-errors').text(wpState.timeout_errors || 0);
+            $process.find('.asmi-wp-api-errors').text(wpState.api_errors || 0);
+            $process.find('.asmi-wp-manually-imported').text(wpState.manually_imported || 0);
+        } else if (wpState.status === 'finished' || wpState.last_run) {
+            $dashboard.show();
+            this.stopWpPolling();
+            
+            var lastRun = wpState.last_run || {};
+            if (lastRun.type && lastRun.finished_at) {
+                $summary.show();
+                var statusText = lastRun.status === 'completed' ? 'erfolgreich' : (lastRun.status === 'cancelled' ? 'abgebrochen' : 'mit Fehlern');
+                var summaryHtml = `
+                    <li><strong>Letzte WordPress-Indexierung:</strong> ${statusText} am ${this.formatDate(lastRun.finished_at)}</li>
+                    <li><strong>Dauer:</strong> ${this.formatDuration(lastRun.duration)}</li>
+                    <li><strong>Posts verarbeitet:</strong> ${lastRun.processed}</li>
+                    <li><strong>ChatGPT verwendet:</strong> ${lastRun.chatgpt_used} | <strong>Fallback:</strong> ${lastRun.fallback_used}</li>
+                    <li><strong>Timeout-Fehler:</strong> ${lastRun.timeout_errors} | <strong>API-Fehler:</strong> ${lastRun.api_errors}</li>
+                    <li><strong>Geschützte Imports:</strong> ${lastRun.manually_imported}</li>
+                `;
+                $summary.find('.asmi-wp-summary-list').html(summaryHtml);
+            }
+            
+            if (wpState.error) {
+                $overview.html('<span class="dashicons dashicons-warning"></span> WordPress Indexierung - Fehler');
+                $process.show().find('.asmi-wp-state-error-p').show().find('.asmi-wp-state-error').text(wpState.error);
+            } else {
+                $overview.html('<span class="dashicons dashicons-yes-alt"></span> WordPress Content - Bereit');
+            }
+        } else {
+            // Hide dashboard when not active
+            $dashboard.hide();
+        }
+    },
+
     renderProgressBar: function($container, title, done, total, color, startTime, actionText) {
         done = parseInt(done, 10) || 0;
         total = parseInt(total, 10) || 0;
@@ -313,6 +412,33 @@ jQuery(function($){
         $container.find('.asmi-state-duration').text(duration);
         $container.find('#asmi-feed-progress-container').hide();
         $container.find('.asmi-state-error-p').hide();
+    },
+
+    renderWpProgressBar: function($container, wpState) {
+        var done = parseInt(wpState.processed_posts, 10) || 0;
+        var total = parseInt(wpState.total_posts, 10) || 0;
+        var pct = total > 0 ? Math.round(100 * done / total) : 0;
+        
+        $container.show();
+        
+        if (wpState.current_action) {
+            $container.find('.asmi-wp-process-title').text(wpState.current_action);
+        }
+        
+        $container.find('.asmi-wp-progress-bar-inner').css({ 
+            'width': pct + '%', 
+            'background-color': '#0073aa' 
+        });
+        
+        $container.find('.asmi-wp-state-done').text(done);
+        $container.find('.asmi-wp-state-total').text(total);
+        $container.find('.asmi-wp-state-pct').text(pct);
+        $container.find('.asmi-wp-state-started').text(this.formatDate(wpState.started_at));
+        
+        var duration = wpState.started_at > 0 ? this.formatDuration(Math.floor(Date.now() / 1000) - wpState.started_at) : '–';
+        $container.find('.asmi-wp-state-duration').text(duration);
+        
+        $container.find('.asmi-wp-state-error-p').hide();
     }
   };
 
