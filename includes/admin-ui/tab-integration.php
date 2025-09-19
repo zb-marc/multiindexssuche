@@ -75,6 +75,25 @@ function asmi_render_tab_integration( $o ) {
 			</td>
 		</tr>
 		<tr>
+			<th><label for="chatgpt_assistant_id"><?php esc_html_e( 'Assistant ID (Optional)', 'asmi-search' ); ?></label></th>
+			<td>
+				<input type="text" name="<?php echo esc_attr( ASMI_OPT ); ?>[chatgpt_assistant_id]" 
+				       id="chatgpt_assistant_id" class="regular-text" 
+				       value="<?php echo esc_attr( $o['chatgpt_assistant_id'] ?? '' ); ?>"
+				       placeholder="asst_...">
+				<p class="description">
+					<?php esc_html_e( 'Optional: Use a pre-configured OpenAI Assistant for better brand recognition.', 'asmi-search' ); ?><br>
+					<?php 
+					if ( ! empty( $o['chatgpt_assistant_id'] ) ) {
+						echo '<strong style="color: #46b450;">' . esc_html__( 'Assistant active:', 'asmi-search' ) . '</strong> ' . esc_html( $o['chatgpt_assistant_id'] );
+					} else {
+						echo esc_html__( 'Create an Assistant at', 'asmi-search' ) . ' <a href="https://platform.openai.com/assistants" target="_blank">platform.openai.com/assistants</a>';
+					}
+					?>
+				</p>
+			</td>
+		</tr>
+		<tr>
 			<th><label for="chatgpt_model"><?php esc_html_e( 'ChatGPT Model', 'asmi-search' ); ?></label></th>
 			<td>
 				<select name="<?php echo esc_attr( ASMI_OPT ); ?>[chatgpt_model]" id="chatgpt_model">
@@ -89,7 +108,13 @@ function asmi_render_tab_integration( $o ) {
 					</option>
 				</select>
 				<p class="description">
-					<?php esc_html_e( 'GPT-4o Mini: $0.15/1M input, $0.60/1M output tokens. Perfect for this use case.', 'asmi-search' ); ?>
+					<?php 
+					if ( ! empty( $o['chatgpt_assistant_id'] ) ) {
+						esc_html_e( 'Note: When using an Assistant, the model is configured in the Assistant settings.', 'asmi-search' );
+					} else {
+						esc_html_e( 'GPT-4o Mini: $0.15/1M input, $0.60/1M output tokens. Perfect for this use case.', 'asmi-search' );
+					}
+					?>
 				</p>
 			</td>
 		</tr>
@@ -130,8 +155,15 @@ function asmi_render_tab_integration( $o ) {
 				          echo esc_textarea( $o['custom_brand_names'] ?? '' ); 
 				?></textarea>
 				<p class="description">
-					<?php esc_html_e( 'Additional brands for ChatGPT to recognize (comma-separated).', 'asmi-search' ); ?><br>
-					<?php esc_html_e( 'ChatGPT already knows major brands but you can add specific or niche brands here.', 'asmi-search' ); ?>
+					<?php 
+					if ( ! empty( $o['chatgpt_assistant_id'] ) ) {
+						esc_html_e( 'Note: When using an Assistant, brands should be configured in the Assistant\'s knowledge files.', 'asmi-search' );
+					} else {
+						esc_html_e( 'Additional brands for ChatGPT to recognize (comma-separated).', 'asmi-search' );
+						echo '<br>';
+						esc_html_e( 'ChatGPT already knows major brands but you can add specific or niche brands here.', 'asmi-search' );
+					}
+					?>
 				</p>
 			</td>
 		</tr>
@@ -168,6 +200,7 @@ jQuery(document).ready(function($) {
 		var $result = $('#asmi-chatgpt-test-result');
 		var apiKey = $('#chatgpt_api_key').val();
 		var model = $('#chatgpt_model').val();
+		var assistantId = $('#chatgpt_assistant_id').val();
 		
 		if (!apiKey) {
 			$result.html('<span style="color:red;">Please enter an API key first.</span>');
@@ -181,6 +214,7 @@ jQuery(document).ready(function($) {
 			action: 'asmi_test_chatgpt',
 			api_key: apiKey,
 			model: model,
+			assistant_id: assistantId,
 			_wpnonce: '<?php echo wp_create_nonce( "asmi_test_chatgpt" ); ?>'
 		}, function(response) {
 			$btn.prop('disabled', false);

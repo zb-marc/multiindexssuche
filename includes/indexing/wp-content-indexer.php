@@ -79,34 +79,93 @@ function asmi_index_single_wp_post( $post_id, $languages = array() ) {
 			);
 			
 			if ( ! is_wp_error( $chatgpt_result ) ) {
-				// ChatGPT erfolgreich
+				// ChatGPT erfolgreich - Verwende die Ergebnisse
+				
+				// Titel: Bei Deutsch original, bei Englisch übersetzt
 				$final_title = ! empty( $chatgpt_result['title'] ) ? 
 					$chatgpt_result['title'] : $original_title;
 				
-				$final_content = ! empty( $chatgpt_result['content'] ) ? 
-					$chatgpt_result['content'] : ( $chatgpt_result['summary'] ?? '' );
+				// Content: Verwende die Zusammenfassung
+				$final_content = '';
 				
-				// Erstelle Keyword-String für Excerpt
-				$keyword_string = '';
-				if ( ! empty( $chatgpt_result['brands'] ) ) {
-					$keyword_string = implode( ' ', $chatgpt_result['brands'] ) . ' ';
+				// Priorität: content > summary
+				if ( ! empty( $chatgpt_result['content'] ) ) {
+					$final_content = $chatgpt_result['content'];
+				} elseif ( ! empty( $chatgpt_result['summary'] ) ) {
+					$final_content = $chatgpt_result['summary'];
 				}
-				if ( ! empty( $chatgpt_result['keywords'] ) ) {
-					$keyword_string .= implode( ' ', array_slice( $chatgpt_result['keywords'], 0, 10 ) );
-				}
-				$final_excerpt = trim( $keyword_string );
 				
+				// Fallback falls beide leer
+				if ( empty( $final_content ) ) {
+					$final_content = wp_trim_words( wp_strip_all_tags( $rendered_content ), 50 );
+				}
+				
+				// Excerpt: ALLE Marken und Keywords kombinieren
+				$keyword_parts = array();
+				
+				// Marken haben höchste Priorität
+				if ( ! empty( $chatgpt_result['brands'] ) && is_array( $chatgpt_result['brands'] ) ) {
+					// Dedupliziere und sortiere Marken
+					$brands = array_unique( $chatgpt_result['brands'] );
+					sort( $brands );
+					$keyword_parts = array_merge( $keyword_parts, $brands );
+					
+					asmi_debug_log( sprintf( 
+						'Post %d (%s): Found brands: %s', 
+						$post_id, 
+						$lang_locale,
+						implode( ', ', $brands )
+					) );
+				}
+				
+				// Dann Keywords hinzufügen
+				if ( ! empty( $chatgpt_result['keywords'] ) && is_array( $chatgpt_result['keywords'] ) ) {
+					// Dedupliziere Keywords und entferne bereits vorhandene Marken
+					$keywords_clean = array_diff( 
+						$chatgpt_result['keywords'], 
+						$keyword_parts 
+					);
+					$keyword_parts = array_merge( $keyword_parts, $keywords_clean );
+				}
+				
+				// Technische Specs hinzufügen wenn vorhanden
+				if ( ! empty( $chatgpt_result['specs'] ) && is_array( $chatgpt_result['specs'] ) ) {
+					foreach ( $chatgpt_result['specs'] as $spec_key => $spec_value ) {
+						if ( ! empty( $spec_value ) && is_scalar( $spec_value ) ) {
+							$keyword_parts[] = $spec_key . ':' . $spec_value;
+						}
+					}
+				}
+				
+				// Deduplizieren und zu String konvertieren
+				$keyword_parts = array_unique( $keyword_parts );
+				
+				// Maximal 50 Keywords/Marken im Excerpt speichern (mehr als vorher)
+				$final_excerpt = implode( ', ', array_slice( $keyword_parts, 0, 50 ) );
+				
+				// Wenn kein Excerpt, verwende ersten Teil des Contents
+				if ( empty( $final_excerpt ) ) {
+					$final_excerpt = wp_trim_words( $final_content, 20 );
+				}
+				
+				// URL-Generierung basierend auf Sprache
 				$final_url = ( 'en' === $lang_slug_short ) ? 
 					home_url( '/en' . wp_make_link_relative( $original_url ) ) : 
 					$original_url;
 				
-				$content_hash = hash( 'sha256', $content_hash_base . '|chatgpt_v2|' . $lang_locale );
+				// Hash für Änderungserkennung
+				$content_hash = hash( 'sha256', $content_hash_base . '|chatgpt_v3|' . $lang_locale );
 				$stats['chatgpt_used']++;
 				
 				asmi_debug_log( sprintf( 
-					'Post %d (%s): ChatGPT processed successfully', 
-					$post_id, $lang_locale
+					'Post %d (%s): ChatGPT processed - Title: %s, Content length: %d, Keywords: %d', 
+					$post_id, 
+					$lang_locale,
+					substr( $final_title, 0, 50 ),
+					strlen( $final_content ),
+					count( $keyword_parts )
 				) );
+				
 			} else {
 				// ChatGPT fehlgeschlagen - Verwende minimalen Fallback
 				asmi_debug_log( sprintf( 
@@ -140,11 +199,23 @@ function asmi_index_single_wp_post( $post_id, $languages = array() ) {
 				$final_title = $extracted['title'] ?? $original_title;
 				$final_content = $extracted['content'] ?? wp_trim_words( wp_strip_all_tags( $rendered_content ), 50 );
 				$final_excerpt = $extracted['excerpt'] ?? '';
+				
+				asmi_debug_log( sprintf( 
+					'Post %d (%s): Using keyword extraction fallback', 
+					$post_id, 
+					$lang_locale
+				) );
 			} else {
 				// Absoluter Minimal-Fallback
 				$final_title = $original_title;
 				$final_content = wp_trim_words( wp_strip_all_tags( $rendered_content ), 50 );
 				$final_excerpt = wp_trim_words( wp_strip_all_tags( $rendered_content ), 10 );
+				
+				asmi_debug_log( sprintf( 
+					'Post %d (%s): Using minimal fallback', 
+					$post_id, 
+					$lang_locale
+				) );
 			}
 			
 			$final_url = ( 'en' === $lang_slug_short ) ? 
@@ -156,7 +227,7 @@ function asmi_index_single_wp_post( $post_id, $languages = array() ) {
 		}
 
 		// Speichere in Datenbank
-		$wpdb->replace(
+		$result = $wpdb->replace(
 			$table_name,
 			array(
 				'source_id'     => $post_id,
@@ -170,8 +241,30 @@ function asmi_index_single_wp_post( $post_id, $languages = array() ) {
 				'content_hash'  => $content_hash,
 				'last_modified' => $post_modified,
 				'indexed_at'    => current_time( 'mysql' ),
+			),
+			array(
+				'%s', // source_id
+				'%s', // lang
+				'%s', // source_type
+				'%s', // title
+				'%s', // content
+				'%s', // excerpt
+				'%s', // url
+				'%s', // image
+				'%s', // content_hash
+				'%s', // last_modified
+				'%s', // indexed_at
 			)
 		);
+		
+		if ( $result === false ) {
+			asmi_debug_log( sprintf( 
+				'Post %d (%s): Database error - %s', 
+				$post_id, 
+				$lang_locale,
+				$wpdb->last_error
+			) );
+		}
 	}
 	
 	return $stats;
@@ -201,6 +294,8 @@ function asmi_index_all_wp_content() {
 		'post_status'    => 'publish',
 		'posts_per_page' => -1,
 		'fields'         => 'ids',
+		'orderby'        => 'modified',
+		'order'          => 'DESC',
 	);
 	
 	$query    = new WP_Query( $args );
@@ -213,6 +308,7 @@ function asmi_index_all_wp_content() {
 			WHERE source_type = 'wordpress' 
 			AND content_hash NOT LIKE '%manual_import%'"
 		);
+		asmi_debug_log( 'No posts found to index' );
 		return;
 	}
 
@@ -220,11 +316,12 @@ function asmi_index_all_wp_content() {
 	if ( ! empty( $o['excluded_ids'] ) ) {
 		$excluded_ids = array_map( 'intval', explode( ',', $o['excluded_ids'] ) );
 		$post_ids     = array_diff( $post_ids, $excluded_ids );
+		asmi_debug_log( sprintf( 'Excluding %d posts from indexing', count( $excluded_ids ) ) );
 	}
 
-	// Lösche nicht mehr existierende Posts
+	// Lösche nicht mehr existierende Posts (außer manuell importierte)
 	$existing_ids_placeholder = implode( ',', array_fill( 0, count( $post_ids ), '%d' ) );
-	$wpdb->query(
+	$deleted = $wpdb->query(
 		$wpdb->prepare(
 			"DELETE FROM $table_name 
 			WHERE source_type = 'wordpress' 
@@ -233,6 +330,10 @@ function asmi_index_all_wp_content() {
 			$post_ids
 		)
 	);
+	
+	if ( $deleted > 0 ) {
+		asmi_debug_log( sprintf( 'Deleted %d obsolete entries', $deleted ) );
+	}
 
 	// Verarbeite Posts
 	$languages = array( 'de_DE', 'en_GB' );
@@ -241,6 +342,9 @@ function asmi_index_all_wp_content() {
 	$chatgpt_used = 0;
 	$fallback_used = 0;
 	$manually_imported = 0;
+	$errors = 0;
+
+	asmi_debug_log( sprintf( 'Starting to index %d posts', $total_posts ) );
 
 	foreach ( $post_ids as $post_id ) {
 		$result = asmi_index_single_wp_post( $post_id, $languages );
@@ -250,7 +354,7 @@ function asmi_index_all_wp_content() {
 		$fallback_used += $result['fallback_used'] ?? 0;
 		$manually_imported += $result['manually_imported'] ?? 0;
 		
-		// Status-Log alle 25 Posts
+		// Status-Log alle 25 Posts oder am Ende
 		if ( $processed % 25 === 0 || $processed === $total_posts ) {
 			asmi_debug_log( sprintf( 
 				'Progress: %d/%d posts | ChatGPT: %d | Fallback: %d | Protected: %d',
@@ -258,47 +362,97 @@ function asmi_index_all_wp_content() {
 			));
 		}
 		
-		// Rate limiting für ChatGPT
-		if ( $use_chatgpt && $processed % 10 === 0 ) {
-			sleep( 1 );
+		// Rate limiting für ChatGPT (weniger aggressiv)
+		if ( $use_chatgpt && $processed % 5 === 0 ) {
+			sleep( 1 ); // 1 Sekunde Pause alle 5 Posts
+		}
+		
+		// Speicher freigeben bei großen Batches
+		if ( $processed % 100 === 0 ) {
+			wp_cache_flush();
 		}
 	}
 	
 	asmi_debug_log( sprintf( 
-		'Indexing Complete: %d posts | ChatGPT: %d | Fallback: %d | Protected: %d',
+		'Indexing Complete: %d posts processed | ChatGPT: %d | Fallback: %d | Protected: %d',
 		$processed, $chatgpt_used, $fallback_used, $manually_imported
 	));
+	
+	// Optimiere Tabelle nach großem Update
+	if ( $processed > 100 ) {
+		$wpdb->query( "OPTIMIZE TABLE $table_name" );
+		asmi_debug_log( 'Database table optimized' );
+	}
 }
 add_action( 'asmi_cron_wp_content_index', 'asmi_index_all_wp_content' );
 
 /**
- * Hook für Post-Speicherung.
+ * Hook für Post-Speicherung - Aktualisiert den Index bei Änderungen.
+ *
+ * @param int     $post_id Die Post-ID.
+ * @param WP_Post $post    Das Post-Objekt.
  */
 function asmi_hook_save_post( $post_id, $post ) {
+	// Skip auto-saves und Revisionen
+	if ( wp_is_post_autosave( $post_id ) || wp_is_post_revision( $post_id ) ) {
+		return;
+	}
+	
 	$o = asmi_get_opts();
 	$post_types = ! empty( $o['wp_post_types'] ) ? 
 		array_filter( array_map( 'trim', explode( ',', $o['wp_post_types'] ) ) ) : 
 		array();
 		
 	if ( in_array( $post->post_type, $post_types, true ) && 'publish' === $post->post_status ) {
+		asmi_debug_log( sprintf( 'Updating index for post %d after save', $post_id ) );
 		asmi_index_single_wp_post( $post_id );
 	}
 }
 add_action( 'save_post', 'asmi_hook_save_post', 10, 2 );
 
 /**
- * Reset der Cache-Einträge.
+ * Hook für Post-Löschung - Entfernt den Post aus dem Index.
+ *
+ * @param int $post_id Die Post-ID.
+ */
+function asmi_hook_delete_post( $post_id ) {
+	global $wpdb;
+	$table_name = $wpdb->prefix . ASMI_INDEX_TABLE;
+	
+	$deleted = $wpdb->delete(
+		$table_name,
+		array(
+			'source_id'   => $post_id,
+			'source_type' => 'wordpress'
+		),
+		array( '%s', '%s' )
+	);
+	
+	if ( $deleted > 0 ) {
+		asmi_debug_log( sprintf( 'Deleted %d index entries for post %d', $deleted, $post_id ) );
+	}
+}
+add_action( 'delete_post', 'asmi_hook_delete_post' );
+
+/**
+ * Reset der Cache-Einträge - Erzwingt Neuindexierung.
  */
 function asmi_reset_translation_cache() {
 	global $wpdb;
 	$table_name = $wpdb->prefix . ASMI_INDEX_TABLE;
 	
-	$wpdb->query( 
+	$updated = $wpdb->query( 
 		"UPDATE $table_name 
 		SET content_hash = NULL 
 		WHERE source_type = 'wordpress' 
 		AND content_hash NOT LIKE '%manual_import%'"
 	);
 	
-	asmi_debug_log( 'Cache reset - manual imports preserved.' );
+	asmi_debug_log( sprintf( 'Cache reset - %d entries marked for re-indexing, manual imports preserved', $updated ) );
+	
+	// Lösche auch ChatGPT Cache
+	if ( function_exists( 'asmi_cleanup_chatgpt_cache' ) ) {
+		asmi_cleanup_chatgpt_cache();
+		asmi_debug_log( 'ChatGPT cache cleared' );
+	}
 }

@@ -56,6 +56,7 @@ function asmi_defaults() {
 		'use_chatgpt'            => 0,
 		'chatgpt_api_key'        => '',
 		'chatgpt_model'          => 'gpt-4o-mini',
+		'chatgpt_assistant_id'   => '', // NEU: Assistant ID
 		
 		// Custom Brands
 		'custom_brand_names'     => '',
@@ -77,6 +78,9 @@ function asmi_get_opts() {
 			$opts[ $key ] = $default_value;
 		}
 	}
+	
+	// Force enable_shortcode to always be 1
+	$opts['enable_shortcode'] = 1;
 	
 	return $opts;
 }
@@ -203,6 +207,9 @@ function asmi_sanitize_options( $in ) {
 	$chatgpt_model = isset( $in['chatgpt_model'] ) ? $in['chatgpt_model'] : 'gpt-4o-mini';
 	$out['chatgpt_model'] = in_array( $chatgpt_model, array( 'gpt-4o-mini', 'gpt-4o', 'gpt-3.5-turbo' ), true ) ? $chatgpt_model : 'gpt-4o-mini';
 	
+	// NEU: Assistant ID
+	$out['chatgpt_assistant_id'] = isset( $in['chatgpt_assistant_id'] ) ? sanitize_text_field( $in['chatgpt_assistant_id'] ) : '';
+	
 	// Custom Brands
 	$out['custom_brand_names'] = isset( $in['custom_brand_names'] ) ? sanitize_text_field( $in['custom_brand_names'] ) : '';
 
@@ -239,6 +246,9 @@ function asmi_sanitize_options( $in ) {
 	// Debug-Log für API-Key-Speicherung
 	if ( ! empty( $out['chatgpt_api_key'] ) ) {
 		asmi_debug_log( 'ChatGPT API Key wurde gespeichert (gekürzt): ' . substr( $out['chatgpt_api_key'], 0, 7 ) . '...' );
+	}
+	if ( ! empty( $out['chatgpt_assistant_id'] ) ) {
+		asmi_debug_log( 'ChatGPT Assistant ID wurde gespeichert: ' . $out['chatgpt_assistant_id'] );
 	}
 	
 	return $out;

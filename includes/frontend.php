@@ -22,7 +22,7 @@ function asmi_add_modal_to_footer() {
 
 	// KORREKTUR: Entfernt, da Sprache jetzt über data-Attribut übergeben wird
 	?>
-	<div data-no-translation>
+	<div>
 		<div id="asmi-search-modal-backdrop" class="asmi-modal-backdrop"></div>
 		<div id="asmi-search-modal" class="asmi-modal-window" data-lang="de">
 			<div class="asmi-modal-content">
@@ -101,9 +101,12 @@ add_shortcode(
 
 		// KORREKTUR: Übergebe die Sprache als data-Attribut am Button
 		return sprintf(
-			'<button id="asmi-modal-trigger-icon-%1$s" type="button" class="asmi-modal-trigger" data-lang="%1$s" aria-label="%2$s">
-				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"></path></svg>
-			</button>',
+			'<button id="asmi-modal-trigger-icon-%1$s" type="button" class="asmi-modal-trigger" data-lang="%1$s" aria-label="%2$s"
+    style="background: none !important; border: none !important; padding: 5px !important; cursor: pointer; line-height: 0 !important; color: #474747 !important; transition: color 0.3s ease;">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+        <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"></path>
+    </svg>
+</button>',
 			esc_attr( $lang_attr ),
 			esc_attr__( 'Open search', 'asmi-search' )
 		);

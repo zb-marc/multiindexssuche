@@ -3,10 +3,9 @@
     var xhr;
     var $modal, $backdrop, $input, $resultsContainer, $closeBtn;
     var scrollPosition = 0;
-    var currentLang = 'de'; // KORREKTUR: Variable für aktuelle Sprache
+    var currentLang = 'de';
 
     function openModal(triggerElement) {
-        // KORREKTUR: Sprache vom auslösenden Element lesen
         if (triggerElement && $(triggerElement).data('lang')) {
             currentLang = $(triggerElement).data('lang');
             console.log('Modal opened with language:', currentLang);
@@ -19,7 +18,6 @@
         $backdrop.addClass('is-active');
         $modal.addClass('is-active');
         
-        // KORREKTUR: Setze die Sprache am Modal für spätere Referenz
         $modal.attr('data-current-lang', currentLang);
         
         setTimeout(function() {
@@ -35,7 +33,6 @@
         $backdrop.removeClass('is-active');
         $modal.removeClass('is-active');
         
-        // Clear results when closing
         $resultsContainer.empty().hide();
         $input.val('');
     }
@@ -51,7 +48,6 @@
             closeModal();
         }
 
-        // KORREKTUR: Event-Handler überarbeitet, um das auslösende Element zu erfassen
         $(document).on('click', '.asmi-modal-trigger', function(e) {
             e.preventDefault();
             openModal(this);
@@ -94,7 +90,6 @@
         
         $resultsContainer.html('<div class="asmi-spinner"></div>').show();
         
-        // KORREKTUR: Verwende die aktuelle Sprache aus der Variable oder vom Modal-Attribut
         var searchLang = $modal.attr('data-current-lang') || currentLang || 'de';
         
         console.log('Performing search with language:', searchLang, 'Term:', term);
@@ -103,7 +98,7 @@
             url: ASMI.endpoint,
             data: { 
                 q: term,
-                lang: searchLang  // KORREKTUR: Verwende die korrekte Sprache
+                lang: searchLang
             },
             success: function(response) {
                 console.log('Search response received. Products:', response.results.products.length, 'WordPress:', response.results.wordpress.length);
@@ -128,7 +123,9 @@
         }
 
         var detailsHtml = '';
+        
         if (item.source === 'product') {
+            // Produkte: Nur SKU/GTIN Details, kein Textauszug
             detailsHtml += '<div class="asmi-product-details">';
             if (item.sku) {
                 detailsHtml += '<span><strong>MPN/SKU:</strong> ' + item.sku + '</span>';
@@ -137,11 +134,33 @@
                 detailsHtml += '<span><strong>EAN/GTIN:</strong> ' + item.gtin + '</span>';
             }
             detailsHtml += '</div>';
+        } else if (item.source === 'wordpress') {
+            // WordPress: 3-zeiliger Textauszug aus dem CONTENT-Feld
+            if (item.content) {
+                // Entferne HTML-Tags, begrenze auf ca. 220 Zeichen für 3 Zeilen
+                var cleanContent = (item.content || '').replace(/<[^>]*>/g, '').trim();
+                // Immer "..." am Ende hinzufügen, auch wenn der Text kürzer ist
+                if (cleanContent.length > 217) {
+                    cleanContent = cleanContent.substring(0, 217) + '...';
+                } else if (cleanContent.length > 0) {
+                    cleanContent = cleanContent + '...';
+                }
+                detailsHtml += '<div class="asmi-wp-excerpt">' + cleanContent + '</div>';
+            } else if (item.excerpt) {
+                // Fallback auf excerpt
+                var cleanExcerpt = (item.excerpt || '').replace(/<[^>]*>/g, '').trim();
+                if (cleanExcerpt.length > 217) {
+                    cleanExcerpt = cleanExcerpt.substring(0, 217) + '...';
+                } else if (cleanExcerpt.length > 0) {
+                    cleanExcerpt = cleanExcerpt + '...';
+                }
+                detailsHtml += '<div class="asmi-wp-excerpt">' + cleanExcerpt + '</div>';
+            }
         }
 
         return `
             <a href="${finalUrl}" class="asmi-result-link" target="_blank" rel="noopener">
-                <article>
+                <article class="asmi-result-${item.source}">
                     <div class="asmi-result-image">${img}</div>
                     <div class="asmi-result-content">
                         <h4 class="asmi-result-title">${item.title || ''}</h4>
@@ -173,7 +192,7 @@
             var wpLink = ASMI.wp_search_url.replace('%s', encodedTerm);
             var wpItemsHtml = wordpress.map(renderItem).join('');
             var wpViewAll = '<a href="' + wpLink + '" class="asmi-view-all-link" target="_blank" rel="noopener">' + ASMI.labels.view_all_wp + '</a>';
-            tabsNav += '<button class="asmi-results-tab-btn" data-pane="asmi-pane-info">Informationen (' + wordpress.length + ')</button>';
+            tabsNav += '<button class="asmi-results-tab-btn" data-pane="asmi-pane-info">Informationen</button>';
             tabsContent += '<div id="asmi-pane-info" class="asmi-results-pane"><div class="asmi-scrollable-content">' + wpItemsHtml + '</div>' + wpViewAll + '</div>';
         }
         if (hasProducts) {
@@ -181,7 +200,7 @@
             var productLink = ASMI.product_search_url ? ASMI.product_search_url + encodedTerm : '#';
             var productItemsHtml = products.map(renderItem).join('');
             var productViewAll = ASMI.product_search_url ? '<a href="' + productLink + '" class="asmi-view-all-link" target="_blank" rel="noopener">' + ASMI.labels.view_all_products + '</a>' : '';
-            tabsNav += '<button class="asmi-results-tab-btn" data-pane="asmi-pane-prod">Produkte (' + products.length + ')</button>';
+            tabsNav += '<button class="asmi-results-tab-btn" data-pane="asmi-pane-prod">Produkte</button>';
             tabsContent += '<div id="asmi-pane-prod" class="asmi-results-pane"><div class="asmi-scrollable-content">' + productItemsHtml + '</div>' + productViewAll + '</div>';
         }
 

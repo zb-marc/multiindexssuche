@@ -156,8 +156,8 @@ function asmi_unified_search( $q, $limit, $lang = 'de' ) {
 		
 		asmi_debug_log( "WordPress content search using language '{$wp_lang_code}'" );
 
-		// OPTIMIERUNG: Erhöhte Gewichtung für Keywords/Marken im Excerpt
-		$query = "SELECT id, source_id, title, excerpt, url, image,
+		// KORREKTUR: content-Feld zum SELECT hinzugefügt!
+		$query = "SELECT id, source_id, title, content, excerpt, url, image,
 					(
 						MATCH(title, content, excerpt) AGAINST(%s IN BOOLEAN MODE)
 						+
@@ -198,6 +198,7 @@ function asmi_unified_search( $q, $limit, $lang = 'de' ) {
 				'source'  => 'wordpress',
 				'id'      => $p['source_id'],
 				'title'   => $p['title'],
+				'content' => $p['content'],  // KORREKTUR: content-Feld hinzugefügt!
 				'url'     => $p['url'],
 				'excerpt' => $p['excerpt'],
 				'image'   => ! empty( $p['image'] ) ? $p['image'] : $o['fallback_image_wp'],

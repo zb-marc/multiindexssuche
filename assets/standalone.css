@@ -55,16 +55,16 @@ body.asmi-modal-open {
 }
 
 .asmi-modal-close {
-    background: none;
+    background: none !important;
     border: none;
-    font-size: 30px;
-    line-height: 1;
+    font-size: 30px !important;
+    line-height: 1 !important;
     cursor: pointer;
-    color: #888;
-    padding: 0 10px;
+    color: #000 !important;
+    padding: 0 10px !important;
 }
 .asmi-modal-close:hover {
-    color: #000;
+    color: #7F0103;
 }
 
 .asmi-modal-content {
@@ -190,32 +190,39 @@ body.asmi-modal-open {
 .asmi-result-no-image {
     width: 100%;
     height: 100%;
-    background-color: #f0f0f0;
+    background: #f0f0f0 url(/wp-content/uploads/AKKUSYS-Logo-hoch-1200x630px-OG.jpg) center center / cover no-repeat;
+    aspect-ratio: 3 / 2;
+    border-radius: 10px 0;
 }
-.asmi-result-content { flex-grow: 1; min-width: 0; } 
+.asmi-result-content { 
+    flex-grow: 1; 
+    min-width: 0; 
+} 
 
-/* Styling für mehrzeilige Titel (Standard für WP-Posts) */
+/* Standard-Styling für alle Titel: Einzeilig mit Ellipsis */
 .asmi-result-title {
     font-weight: 600;
-    margin: 0;
+    margin: 0 0 5px 0;
     line-height: 1.3;
-    overflow: hidden;
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    -webkit-box-orient: vertical;
-}
-
-/* NEU: Spezifisches Styling für einzeilige Produkttitel */
-#asmi-pane-prod .asmi-result-title {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    display: block; /* Überschreibt die -webkit-box Eigenschaft */
-    -webkit-line-clamp: unset;
-    -webkit-box-orient: unset;
+    display: block;
 }
 
-/* KORREKTUR: Styling für Produktdetails ohne Abstände */
+/* WordPress-Posts: 3-zeiliger Textauszug mit ... am Ende */
+.asmi-wp-excerpt {
+    font-size: 13px;
+    color: #666;
+    line-height: 1.4;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;  /* GEÄNDERT: Von 2 auf 3 Zeilen */
+    -webkit-box-orient: vertical;
+    margin-top: 3px;
+}
+
+/* Produkte: Details-Styling ohne Abstände */
 .asmi-product-details {
     font-size: 12px;
     color: #555;
@@ -227,11 +234,14 @@ body.asmi-modal-open {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    line-height: 1.4; /* Sorgt für etwas Luft */
+    line-height: 1.4;
 }
 
-
-.asmi-info-message { padding: 40px 20px; text-align: center; color: #777; }
+.asmi-info-message { 
+    padding: 40px 20px; 
+    text-align: center; 
+    color: #777; 
+}
 
 .asmi-view-all-link {
     display: block;
