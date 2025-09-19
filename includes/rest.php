@@ -112,10 +112,18 @@ function asmi_rest_reindex_wp() {
 function asmi_rest_tick( WP_REST_Request $r ) {
 	$sent_token = $r->get_param( 'token' );
 	$stored_token = get_option( 'asmi_tick_token' );
+	
+	asmi_debug_log( 'REST TICK: Token check - sent: ' . substr($sent_token, 0, 10) . '..., stored: ' . substr($stored_token, 0, 10) . '...' );
+	
 	if ( empty( $sent_token ) || empty( $stored_token ) || ! hash_equals( $stored_token, $sent_token ) ) {
+		asmi_debug_log( 'REST TICK: Token validation FAILED' );
 		return new WP_Error( 'invalid_token', 'Invalid token', [ 'status' => 403 ] );
 	}
+	
+	asmi_debug_log( 'REST TICK: Token validated, executing tick action' );
 	do_action( ASMI_INDEX_TICK_ACTION );
+	asmi_debug_log( 'REST TICK: Tick action completed' );
+	
 	return new WP_REST_Response( [ 'ok' => true ], 200 );
 }
 function asmi_rest_cancel() {
