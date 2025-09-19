@@ -1,14 +1,14 @@
-# AS Multiindex Search
+# Multiindex Search
 
 **Version:** 1.9.3  
 **Author:** Marc Mirschel  
-**Website:** [akkusys.de](https://akkusys.de)  
+**Website:** [zoobro.de](https://zoobro.de)  
 **License:** GPL-2.0+  
 **Requires:** WordPress 5.8+, PHP 7.4+
 
 ## 📋 Überblick
 
-AS Multiindex Search ist ein hochleistungsfähiges WordPress-Plugin für föderierte Suche, das externe Produktfeeds und native WordPress-Inhalte in einer einheitlichen, mehrsprachigen AJAX-Suchlösung zusammenführt. Speziell entwickelt für E-Commerce-Websites im Solar- und Batteriebereich, bietet es intelligente Inhaltsanalyse durch ChatGPT/OpenAI Assistant API Integration.
+Multiindex Search ist ein hochleistungsfähiges WordPress-Plugin für föderierte Suche, das externe Produktfeeds und native WordPress-Inhalte in einer einheitlichen, mehrsprachigen AJAX-Suchlösung zusammenführt. Speziell entwickelt für E-Commerce-Websites im Solar- und Batteriebereich, bietet es intelligente Inhaltsanalyse durch ChatGPT/OpenAI Assistant API Integration.
 
 ## ✨ Hauptfunktionen
 
