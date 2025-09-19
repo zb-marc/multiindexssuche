@@ -301,8 +301,8 @@ mysqldump -u user -p database wp_asmi_index > backup.sql
 ## 🤝 Support & Entwicklung
 
 ### Kontakt
-- **Website**: [akkusys.de](https://akkusys.de)
-- **Entwickler**: Marc Mirschel ([mirschel.biz](https://mirschel.biz))
+- **Website**: [zoobro.de](https://zoobro.de)
+- **Entwickler**: Marc Mirschel ([zoobro.de](https://zoobro.de))
 
 ### Mitwirkende
 Beiträge sind willkommen! Bitte erstellen Sie einen Pull Request oder öffnen Sie ein Issue.
@@ -325,4 +325,4 @@ Dieses Plugin ist unter der GPL v2 oder später lizenziert.
 
 ---
 
-*AS Multiindex Search - Professionelle föderierte Suche für WordPress*
+*Multiindex Search - Professionelle föderierte Suche für WordPress*
