@@ -197,7 +197,31 @@
         }
         if (hasProducts) {
             if (!firstActivePaneId) { firstActivePaneId = 'asmi-pane-prod'; }
-            var productLink = ASMI.product_search_url ? ASMI.product_search_url + encodedTerm : '#';
+            
+            // BUGFIX: Berücksichtige die aktuelle Sprache beim Generieren des Produkt-Links
+            var productLink = ASMI.product_search_url;
+            if (productLink) {
+                var searchLang = $modal.attr('data-current-lang') || currentLang || 'de';
+                
+                // Füge /en/ zur URL hinzu, wenn englische Sprache aktiv ist
+                if (searchLang === 'en' || searchLang === 'en_GB') {
+                    // Prüfe ob die URL bereits /en/ enthält
+                    if (productLink.indexOf('/en/') === -1) {
+                        // Parse die URL
+                        var urlParts = productLink.match(/^(https?:\/\/[^\/]+)(\/.*)?$/);
+                        if (urlParts) {
+                            var domain = urlParts[1];
+                            var path = urlParts[2] || '/';
+                            // Füge /en vor dem Pfad ein
+                            productLink = domain + '/en' + path;
+                        }
+                    }
+                }
+                productLink = productLink + encodedTerm;
+            } else {
+                productLink = '#';
+            }
+            
             var productItemsHtml = products.map(renderItem).join('');
             var productViewAll = ASMI.product_search_url ? '<a href="' + productLink + '" class="asmi-view-all-link" target="_blank" rel="noopener">' + ASMI.labels.view_all_products + '</a>' : '';
             tabsNav += '<button class="asmi-results-tab-btn" data-pane="asmi-pane-prod">Produkte</button>';
