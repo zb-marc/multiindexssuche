@@ -34,19 +34,32 @@ function asmi_unified_search( $q, $limit, $lang = 'de' ) {
 		return array( 'products' => array(), 'wordpress' => array() );
 	}
 	
-	$fulltext_keyword = $keyword . '*';
+	// OPTIMIERUNG: Intelligente Behandlung von Bindestrichen
+	// Erstelle verschiedene Suchvarianten für bessere Treffer
+	$search_variants = asmi_prepare_search_variants( $keyword );
+	$original_keyword = $keyword;
+	$fulltext_keyword = $search_variants['fulltext'] . '*';
+	$like_keyword = $search_variants['like'];
+	
+	asmi_debug_log( "Search variants - Original: '{$original_keyword}', Fulltext: '{$search_variants['fulltext']}', Like: '{$like_keyword}'" );
 
 	// --- Suche 1: Produkte ---
 	// Explizite Sprachfilterung für Produkte
 	$product_results = array();
 	
-	// Exact Match Suche mit korrekter Sprache
+	// Exact Match Suche mit korrekter Sprache (erweitert um Bindestrich-Varianten)
 	$exact_match_query = $wpdb->prepare(
 		"SELECT id, source_id, title, excerpt, url, image, price, sku, gtin
 		 FROM {$table_name}
-		 WHERE source_type = 'product' AND lang = %s AND (source_id = %s OR sku = %s OR gtin = %s)
+		 WHERE source_type = 'product' AND lang = %s 
+		 AND (source_id = %s OR sku = %s OR gtin = %s 
+		      OR sku LIKE %s OR gtin LIKE %s
+		      OR REPLACE(sku, '-', ' ') = %s OR REPLACE(gtin, '-', ' ') = %s)
 		 LIMIT 1",
-		$lang_short, $keyword, $keyword, $keyword
+		$lang_short, 
+		$original_keyword, $original_keyword, $original_keyword,
+		'%' . $wpdb->esc_like( $like_keyword ) . '%', '%' . $wpdb->esc_like( $like_keyword ) . '%',
+		$search_variants['normalized'], $search_variants['normalized']
 	);
 	$exact_match = $wpdb->get_row( $exact_match_query, ARRAY_A );
 
@@ -74,35 +87,70 @@ function asmi_unified_search( $q, $limit, $lang = 'de' ) {
 	}
 	
 	// Volltext-Suche für Produkte mit korrekter Sprache
-	// OPTIMIERUNG: Erhöhte Gewichtung für Marken im Excerpt
+	// ERWEITERT: Kombinierte Suche mit FULLTEXT und LIKE für Bindestrich-Begriffe
 	$product_query = $wpdb->prepare(
 		"SELECT id, title, excerpt, url, image, price, sku, gtin,
 			(
-				MATCH(title, content, excerpt, sku, gtin) AGAINST(%s IN BOOLEAN MODE)
+				CASE 
+					WHEN MATCH(title, content, excerpt, sku, gtin) AGAINST(%s IN BOOLEAN MODE) THEN
+						MATCH(title, content, excerpt, sku, gtin) AGAINST(%s IN BOOLEAN MODE)
+					ELSE 0
+				END
 				+
-				CASE WHEN excerpt LIKE %s THEN 1.5 ELSE 0 END
+				CASE WHEN excerpt LIKE %s THEN 2.0 ELSE 0 END
 				+
-				CASE WHEN title LIKE %s THEN 0.8 ELSE 0 END
+				CASE WHEN title LIKE %s THEN 1.5 ELSE 0 END
 				+
-				CASE WHEN sku LIKE %s THEN 0.7 ELSE 0 END
+				CASE WHEN sku LIKE %s THEN 1.3 ELSE 0 END
 				+
-				CASE WHEN gtin LIKE %s THEN 0.7 ELSE 0 END
+				CASE WHEN gtin LIKE %s THEN 1.3 ELSE 0 END
 				+
-				CASE WHEN content LIKE %s THEN 0.6 ELSE 0 END
+				CASE WHEN content LIKE %s THEN 0.8 ELSE 0 END
+				+
+				-- Zusätzliche Gewichtung für Bindestrich-Varianten
+				CASE WHEN REPLACE(title, '-', ' ') LIKE %s THEN 1.2 ELSE 0 END
+				+
+				CASE WHEN REPLACE(excerpt, '-', ' ') LIKE %s THEN 1.0 ELSE 0 END
+				+
+				CASE WHEN REPLACE(sku, '-', ' ') LIKE %s THEN 1.0 ELSE 0 END
 			) AS relevance
 		FROM {$table_name}
 		WHERE source_type = 'product' AND lang = %s
-		AND MATCH(title, content, excerpt, sku, gtin) AGAINST(%s IN BOOLEAN MODE)
+		AND (
+			MATCH(title, content, excerpt, sku, gtin) AGAINST(%s IN BOOLEAN MODE)
+			OR title LIKE %s
+			OR excerpt LIKE %s
+			OR sku LIKE %s
+			OR gtin LIKE %s
+			OR content LIKE %s
+			OR REPLACE(title, '-', ' ') LIKE %s
+			OR REPLACE(excerpt, '-', ' ') LIKE %s
+			OR REPLACE(sku, '-', ' ') LIKE %s
+			OR REPLACE(gtin, '-', ' ') LIKE %s
+		)
 		ORDER BY relevance DESC
 		LIMIT %d",
 		$fulltext_keyword,
-		'%' . $wpdb->esc_like( $keyword ) . '%',
-		'%' . $wpdb->esc_like( $keyword ) . '%',
-		$wpdb->esc_like( $keyword ) . '%',
-		$wpdb->esc_like( $keyword ) . '%',
-		'%' . $wpdb->esc_like( $keyword ) . '%',
+		$fulltext_keyword,
+		'%' . $wpdb->esc_like( $like_keyword ) . '%',
+		'%' . $wpdb->esc_like( $like_keyword ) . '%',
+		'%' . $wpdb->esc_like( $like_keyword ) . '%',
+		'%' . $wpdb->esc_like( $like_keyword ) . '%',
+		'%' . $wpdb->esc_like( $like_keyword ) . '%',
+		'%' . $wpdb->esc_like( $search_variants['normalized'] ) . '%',
+		'%' . $wpdb->esc_like( $search_variants['normalized'] ) . '%',
+		'%' . $wpdb->esc_like( $search_variants['normalized'] ) . '%',
 		$lang_short,  // WICHTIG: Verwende den kurzen Sprachcode für Produkte
 		$fulltext_keyword,
+		'%' . $wpdb->esc_like( $like_keyword ) . '%',
+		'%' . $wpdb->esc_like( $like_keyword ) . '%',
+		'%' . $wpdb->esc_like( $like_keyword ) . '%',
+		'%' . $wpdb->esc_like( $like_keyword ) . '%',
+		'%' . $wpdb->esc_like( $like_keyword ) . '%',
+		'%' . $wpdb->esc_like( $search_variants['normalized'] ) . '%',
+		'%' . $wpdb->esc_like( $search_variants['normalized'] ) . '%',
+		'%' . $wpdb->esc_like( $search_variants['normalized'] ) . '%',
+		'%' . $wpdb->esc_like( $search_variants['normalized'] ) . '%',
 		$limit
 	);
 	
@@ -156,33 +204,63 @@ function asmi_unified_search( $q, $limit, $lang = 'de' ) {
 		
 		asmi_debug_log( "WordPress content search using language '{$wp_lang_code}'" );
 
-		// KORREKTUR: content-Feld zum SELECT hinzugefügt!
+		// ERWEITERT: WordPress-Suche mit Bindestrich-Unterstützung
 		$query = "SELECT id, source_id, title, content, excerpt, url, image,
 					(
-						MATCH(title, content, excerpt) AGAINST(%s IN BOOLEAN MODE)
+						CASE 
+							WHEN MATCH(title, content, excerpt) AGAINST(%s IN BOOLEAN MODE) THEN
+								MATCH(title, content, excerpt) AGAINST(%s IN BOOLEAN MODE)
+							ELSE 0
+						END
 						+
 						CASE 
-							WHEN LOWER(excerpt) LIKE %s THEN 2.0
-							WHEN LOWER(title) LIKE %s THEN 1.5
-							WHEN LOWER(content) LIKE %s THEN 1.0
+							WHEN LOWER(excerpt) LIKE %s THEN 2.5
+							WHEN LOWER(title) LIKE %s THEN 2.0
+							WHEN LOWER(content) LIKE %s THEN 1.5
+							ELSE 0
+						END
+						+
+						-- Zusätzliche Gewichtung für Bindestrich-Varianten
+						CASE 
+							WHEN LOWER(REPLACE(excerpt, '-', ' ')) LIKE %s THEN 1.5
+							WHEN LOWER(REPLACE(title, '-', ' ')) LIKE %s THEN 1.2
+							WHEN LOWER(REPLACE(content, '-', ' ')) LIKE %s THEN 1.0
 							ELSE 0
 						END
 					) AS relevance
 				  FROM {$table_name}
 				  WHERE source_type = 'wordpress' AND lang = %s
-				  AND MATCH(title, content, excerpt) AGAINST(%s IN BOOLEAN MODE)
+				  AND (
+					  MATCH(title, content, excerpt) AGAINST(%s IN BOOLEAN MODE)
+					  OR LOWER(title) LIKE %s
+					  OR LOWER(excerpt) LIKE %s
+					  OR LOWER(content) LIKE %s
+					  OR LOWER(REPLACE(title, '-', ' ')) LIKE %s
+					  OR LOWER(REPLACE(excerpt, '-', ' ')) LIKE %s
+					  OR LOWER(REPLACE(content, '-', ' ')) LIKE %s
+				  )
 				  {$exclude_sql}
 				  ORDER BY relevance DESC
 				  LIMIT %d";
 		
 		$params = array_merge(
 			array( 
+				$fulltext_keyword,
 				$fulltext_keyword, 
-				'%' . strtolower( $wpdb->esc_like( $keyword ) ) . '%',
-				'%' . strtolower( $wpdb->esc_like( $keyword ) ) . '%',
-				'%' . strtolower( $wpdb->esc_like( $keyword ) ) . '%',
+				'%' . strtolower( $wpdb->esc_like( $like_keyword ) ) . '%',
+				'%' . strtolower( $wpdb->esc_like( $like_keyword ) ) . '%',
+				'%' . strtolower( $wpdb->esc_like( $like_keyword ) ) . '%',
+				'%' . strtolower( $wpdb->esc_like( $search_variants['normalized'] ) ) . '%',
+				'%' . strtolower( $wpdb->esc_like( $search_variants['normalized'] ) ) . '%',
+				'%' . strtolower( $wpdb->esc_like( $search_variants['normalized'] ) ) . '%',
 				$wp_lang_code, 
-				$fulltext_keyword 
+				$fulltext_keyword,
+				'%' . strtolower( $wpdb->esc_like( $like_keyword ) ) . '%',
+				'%' . strtolower( $wpdb->esc_like( $like_keyword ) ) . '%',
+				'%' . strtolower( $wpdb->esc_like( $like_keyword ) ) . '%',
+				'%' . strtolower( $wpdb->esc_like( $search_variants['normalized'] ) ) . '%',
+				'%' . strtolower( $wpdb->esc_like( $search_variants['normalized'] ) ) . '%',
+				'%' . strtolower( $wpdb->esc_like( $search_variants['normalized'] ) ) . '%'
 			),
 			$exclude_ids,
 			array( $limit )
@@ -215,4 +293,67 @@ function asmi_unified_search( $q, $limit, $lang = 'de' ) {
 		'wordpress' => $wp_results,
 		'products'  => $product_results
 	);
+}
+
+/**
+ * Bereitet verschiedene Suchvarianten für bessere Treffer vor.
+ * Behandelt speziell Begriffe mit Bindestrichen intelligent.
+ *
+ * @param string $keyword Der Original-Suchbegriff.
+ * @return array Array mit verschiedenen Suchvarianten.
+ */
+function asmi_prepare_search_variants( $keyword ) {
+	$variants = array(
+		'original' => $keyword,
+		'fulltext' => $keyword,
+		'like' => $keyword,
+		'normalized' => $keyword
+	);
+	
+	// Behandle Bindestriche intelligent
+	if ( strpos( $keyword, '-' ) !== false ) {
+		// Für FULLTEXT: Ersetze Bindestrich durch Leerzeichen
+		// Dies hilft bei Begriffen wie "q-batteries" -> "q batteries"
+		$fulltext_variant = str_replace( '-', ' ', $keyword );
+		
+		// Entferne einzelne Buchstaben am Anfang, wenn sie durch Bindestrich getrennt sind
+		// z.B. "q-batteries" -> "batteries" für zusätzliche Suche
+		$parts = explode( '-', $keyword );
+		if ( count( $parts ) > 1 && strlen( $parts[0] ) <= 2 ) {
+			// Wenn der erste Teil sehr kurz ist (1-2 Zeichen), nutze auch den Rest allein
+			$additional_search = implode( ' ', array_slice( $parts, 1 ) );
+			$fulltext_variant = $fulltext_variant . ' ' . $additional_search;
+		}
+		
+		// SICHERHEIT: Prüfe ob der FULLTEXT-Begriff zu kurz ist
+		// MySQL benötigt mindestens 3 Zeichen für FULLTEXT (ft_min_word_len)
+		$fulltext_parts = explode( ' ', $fulltext_variant );
+		$valid_parts = array();
+		foreach ( $fulltext_parts as $part ) {
+			$clean_part = trim( $part );
+			// Füge nur Teile hinzu, die mindestens 3 Zeichen haben
+			if ( strlen( $clean_part ) >= 3 ) {
+				$valid_parts[] = $clean_part;
+			}
+		}
+		
+		// Wenn keine gültigen Teile übrig sind, verwende einen leeren String
+		// (FULLTEXT wird dann einfach keine Treffer liefern, aber keinen Fehler werfen)
+		$variants['fulltext'] = ! empty( $valid_parts ) ? implode( ' ', $valid_parts ) : '';
+		$variants['normalized'] = str_replace( '-', ' ', $keyword );
+	}
+	
+	// ZUSÄTZLICHE SICHERHEIT: Prüfe auch den normalen Begriff
+	if ( strlen( trim( $variants['fulltext'] ) ) < 3 ) {
+		// Bei zu kurzen Begriffen verwende einen leeren String für FULLTEXT
+		// Die LIKE-Suche wird trotzdem funktionieren
+		$variants['fulltext'] = '';
+	}
+	
+	// Behandle auch andere Sonderzeichen
+	// Entferne oder ersetze Sonderzeichen für LIKE-Suche
+	$like_variant = preg_replace( '/[^\p{L}\p{N}\s\-]/u', '', $keyword );
+	$variants['like'] = $like_variant;
+	
+	return $variants;
 }

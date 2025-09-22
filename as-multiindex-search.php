@@ -2,7 +2,7 @@
 /**
  * Plugin Name: AS Multiindex Search
  * Description: Eine föderierte Suche, die native WordPress-Inhalte und mehrsprachige, externe Produktfeeds (XML, CSV, JSON) in jeder AJAX-Suche nahtlos zusammenführt.
- * Version:     1.10.2
+ * Version:     1.10.3
  * Author:      Marc Mirschel
  * Author URI:  https://mirschel.biz
  * Plugin URI:  https://akkusys.de
