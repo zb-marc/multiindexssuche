@@ -96,34 +96,46 @@ function asmi_start_wp_content_indexing() {
  * @return void
  */
 function asmi_schedule_wp_index_tick() {
-	$token = get_option( 'asmi_tick_token' );
-	if ( empty( $token ) ) {
-		$token = wp_generate_password( 64, false, false );
-		update_option( 'asmi_tick_token', $token );
-	}
-
-	$url = rest_url( ASMI_REST_NS . '/wp-index/tick' );
+	$o = asmi_get_opts();
 	
-	$args = array(
-		'method'    => 'POST',
-		'timeout'   => 0.01,
-		'blocking'  => false,
-		'sslverify' => apply_filters( 'https_local_ssl_verify', false ),
-		'body'      => array( 'token' => $token ),
-	);
-	
-	$response = wp_remote_post( $url, $args );
+	// Prüfe ob High-Speed-Indexing aktiviert ist
+	if ( ! empty( $o['high_speed_indexing'] ) ) {
+		// Verwende Loopback-Request für schnellere Verarbeitung
+		$token = get_option( 'asmi_tick_token' );
+		if ( empty( $token ) ) {
+			$token = wp_generate_password( 64, false, false );
+			update_option( 'asmi_tick_token', $token );
+		}
 
-	if ( is_wp_error( $response ) ) {
-		asmi_debug_log( 'WP INDEX SCHEDULE ERROR: ' . $response->get_error_message() );
+		$url = rest_url( ASMI_REST_NS . '/wp-index/tick' );
 		
-		// Fallback auf WP Cron
-		if ( ! wp_next_scheduled( ASMI_WP_INDEX_TICK_ACTION ) ) {
-			wp_schedule_single_event( time() + 3, ASMI_WP_INDEX_TICK_ACTION );
-			asmi_debug_log( 'WP INDEX: Fallback to WP Cron scheduled' );
+		$args = array(
+			'method'    => 'POST',
+			'timeout'   => 0.01,
+			'blocking'  => false,
+			'sslverify' => apply_filters( 'https_local_ssl_verify', false ),
+			'body'      => array( 'token' => $token ),
+		);
+		
+		$response = wp_remote_post( $url, $args );
+
+		if ( is_wp_error( $response ) ) {
+			asmi_debug_log( 'WP INDEX SCHEDULE ERROR (Loopback failed): ' . $response->get_error_message() );
+			
+			// Fallback auf WP Cron bei Loopback-Fehler
+			if ( ! wp_next_scheduled( ASMI_WP_INDEX_TICK_ACTION ) ) {
+				wp_schedule_single_event( time() + 2, ASMI_WP_INDEX_TICK_ACTION );
+				asmi_debug_log( 'WP INDEX: Fallback to WP Cron scheduled' );
+			}
+		} else {
+			asmi_debug_log( 'WP INDEX: Next tick scheduled via loopback' );
 		}
 	} else {
-		asmi_debug_log( 'WP INDEX: Next tick scheduled via loopback' );
+		// Verwende Standard WP Cron
+		if ( ! wp_next_scheduled( ASMI_WP_INDEX_TICK_ACTION ) ) {
+			wp_schedule_single_event( time() + 2, ASMI_WP_INDEX_TICK_ACTION );
+			asmi_debug_log( 'WP INDEX: Next tick scheduled via WP Cron' );
+		}
 	}
 }
 
@@ -139,6 +151,31 @@ function asmi_wp_index_tick_handler() {
 	
 	if ( $state['status'] !== 'indexing' ) {
 		asmi_debug_log( 'WP INDEX TICK: Status is not indexing, stopping' );
+		return;
+	}
+
+	// Timeout-Check: Wenn der letzte Update zu lange her ist, setze den Status zurück
+	$time_since_update = time() - $state['updated_at'];
+	if ( $state['updated_at'] > 0 && $time_since_update > 3600 ) { // 1 Stunde Timeout
+		asmi_debug_log( 'WP INDEX TICK: Process timeout detected (no update for ' . $time_since_update . ' seconds)' );
+		$state['status'] = 'idle';
+		$state['error'] = __( 'WordPress indexing timed out after 1 hour of inactivity.', 'asmi-search' );
+		$state['finished_at'] = time();
+		
+		$state['last_run'] = array(
+			'type'               => __( 'WordPress Content Indexing', 'asmi-search' ),
+			'status'             => 'timeout',
+			'finished_at'        => $state['finished_at'],
+			'duration'           => $state['finished_at'] - $state['started_at'],
+			'processed'          => $state['processed_posts'],
+			'chatgpt_used'       => $state['chatgpt_used'],
+			'fallback_used'      => $state['fallback_used'],
+			'manually_imported'  => $state['manually_imported'],
+			'timeout_errors'     => $state['timeout_errors'],
+			'api_errors'         => $state['api_errors'],
+		);
+		
+		asmi_set_wp_index_state( $state );
 		return;
 	}
 
@@ -195,10 +232,12 @@ function asmi_wp_index_tick_handler() {
 			$state['processed_posts'] . '/' . $state['total_posts'] );
 	}
 
+	// Aktualisiere den State vor dem nächsten Tick
 	asmi_set_wp_index_state( $state );
 	
-	// Plane den nächsten Tick mit einer kleinen Verzögerung
-	wp_schedule_single_event( time() + 2, ASMI_WP_INDEX_TICK_ACTION );
+	// CRITICAL FIX: Verwende die robuste Scheduling-Funktion statt direktem wp_schedule_single_event
+	asmi_debug_log( 'WP INDEX TICK: Scheduling next tick...' );
+	asmi_schedule_wp_index_tick();
 }
 add_action( ASMI_WP_INDEX_TICK_ACTION, 'asmi_wp_index_tick_handler' );
 
