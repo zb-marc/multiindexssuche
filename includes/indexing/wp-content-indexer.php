@@ -87,15 +87,23 @@ function asmi_start_wp_content_indexing() {
 	);
 
 	asmi_set_wp_index_state( $state );
-	asmi_schedule_wp_index_tick();
+	asmi_schedule_wp_index_tick( true ); // true = erster Tick, keine Verzögerung
 }
 
 /**
  * Plant den nächsten WordPress-Indexierung-Tick.
  *
+ * @param bool $immediate Optional. Ob der Tick sofort ausgeführt werden soll. Standard false.
  * @return void
  */
-function asmi_schedule_wp_index_tick() {
+function asmi_schedule_wp_index_tick( $immediate = false ) {
+	// CRITICAL: Prüfe ob der Prozess noch aktiv ist
+	$state = asmi_get_wp_index_state();
+	if ( $state['status'] !== 'indexing' ) {
+		asmi_debug_log( 'WP INDEX SCHEDULE: Process not active (status: ' . $state['status'] . '), skipping tick schedule' );
+		return;
+	}
+	
 	$o = asmi_get_opts();
 	
 	// Prüfe ob High-Speed-Indexing aktiviert ist
@@ -105,6 +113,11 @@ function asmi_schedule_wp_index_tick() {
 		if ( empty( $token ) ) {
 			$token = wp_generate_password( 64, false, false );
 			update_option( 'asmi_tick_token', $token );
+		}
+
+		// Bei nicht-sofortiger Ausführung warte kurz, um Server nicht zu überlasten
+		if ( ! $immediate ) {
+			sleep( 1 ); // 1 Sekunde Pause zwischen Ticks
 		}
 
 		$url = rest_url( ASMI_REST_NS . '/wp-index/tick' );
@@ -124,16 +137,18 @@ function asmi_schedule_wp_index_tick() {
 			
 			// Fallback auf WP Cron bei Loopback-Fehler
 			if ( ! wp_next_scheduled( ASMI_WP_INDEX_TICK_ACTION ) ) {
-				wp_schedule_single_event( time() + 2, ASMI_WP_INDEX_TICK_ACTION );
+				$delay = $immediate ? 0 : 3;
+				wp_schedule_single_event( time() + $delay, ASMI_WP_INDEX_TICK_ACTION );
 				asmi_debug_log( 'WP INDEX: Fallback to WP Cron scheduled' );
 			}
 		} else {
-			asmi_debug_log( 'WP INDEX: Next tick scheduled via loopback' );
+			asmi_debug_log( 'WP INDEX: Next tick scheduled via loopback' . ( $immediate ? ' (immediate)' : ' (with 1s delay)' ) );
 		}
 	} else {
 		// Verwende Standard WP Cron
 		if ( ! wp_next_scheduled( ASMI_WP_INDEX_TICK_ACTION ) ) {
-			wp_schedule_single_event( time() + 2, ASMI_WP_INDEX_TICK_ACTION );
+			$delay = $immediate ? 0 : 3;
+			wp_schedule_single_event( time() + $delay, ASMI_WP_INDEX_TICK_ACTION );
 			asmi_debug_log( 'WP INDEX: Next tick scheduled via WP Cron' );
 		}
 	}
@@ -149,8 +164,11 @@ function asmi_wp_index_tick_handler() {
 	
 	$state = asmi_get_wp_index_state();
 	
+	// CRITICAL: Sofort prüfen ob der Prozess noch aktiv ist
 	if ( $state['status'] !== 'indexing' ) {
-		asmi_debug_log( 'WP INDEX TICK: Status is not indexing, stopping' );
+		asmi_debug_log( 'WP INDEX TICK: Status is not indexing (' . $state['status'] . '), stopping immediately' );
+		// Stelle sicher, dass keine weiteren Ticks geplant sind
+		wp_clear_scheduled_hook( ASMI_WP_INDEX_TICK_ACTION );
 		return;
 	}
 
@@ -176,6 +194,7 @@ function asmi_wp_index_tick_handler() {
 		);
 		
 		asmi_set_wp_index_state( $state );
+		wp_clear_scheduled_hook( ASMI_WP_INDEX_TICK_ACTION );
 		return;
 	}
 
@@ -186,16 +205,41 @@ function asmi_wp_index_tick_handler() {
 		return;
 	}
 
+	// Dynamische Batch-Size basierend auf verfügbarem Speicher und Prozesszeit
+	$memory_limit = wp_convert_hr_to_bytes( ini_get( 'memory_limit' ) );
+	$memory_usage = memory_get_usage( true );
+	$memory_available = $memory_limit - $memory_usage;
+	$memory_percentage_used = ( $memory_usage / $memory_limit ) * 100;
+	
+	// Reduziere Batch-Size wenn Speicher knapp wird
+	$batch_size = $state['batch_size'];
+	if ( $memory_percentage_used > 80 ) {
+		$batch_size = max( 1, min( 2, $batch_size ) );
+		asmi_debug_log( 'WP INDEX TICK: Reduced batch size to ' . $batch_size . ' due to memory usage (' . round( $memory_percentage_used ) . '%)' );
+	}
+	
 	// Verarbeite ein Batch von Posts
-	$batch_size = min( $state['batch_size'], count( $state['post_queue'] ) );
+	$batch_size = min( $batch_size, count( $state['post_queue'] ) );
 	$batch_posts = array_slice( $state['post_queue'], 0, $batch_size );
 	
-	asmi_debug_log( 'WP INDEX TICK: Processing batch of ' . $batch_size . ' posts' );
+	asmi_debug_log( 'WP INDEX TICK: Processing batch of ' . $batch_size . ' posts (Memory: ' . round( $memory_percentage_used ) . '% used)' );
+
+	$batch_start_time = microtime( true );
 
 	foreach ( $batch_posts as $post_id ) {
+		// CRITICAL: Prüfe vor jedem Post ob der Prozess noch aktiv ist
+		$current_state = asmi_get_wp_index_state();
+		if ( $current_state['status'] !== 'indexing' ) {
+			asmi_debug_log( 'WP INDEX TICK: Process cancelled during batch processing, stopping' );
+			wp_clear_scheduled_hook( ASMI_WP_INDEX_TICK_ACTION );
+			return;
+		}
+		
 		$post = get_post( $post_id );
 		if ( ! $post || wp_is_post_revision( $post_id ) ) {
 			asmi_debug_log( 'WP INDEX TICK: Skipping invalid post ' . $post_id );
+			// Post aus Queue entfernen auch wenn übersprungen
+			$state['post_queue'] = array_slice( $state['post_queue'], 1 );
 			continue;
 		}
 
@@ -211,10 +255,25 @@ function asmi_wp_index_tick_handler() {
 
 		// Verarbeite alle Sprachen für diesen Post
 		foreach ( $state['languages'] as $lang_locale ) {
+			// Erneut prüfen ob abgebrochen wurde
+			$current_state = asmi_get_wp_index_state();
+			if ( $current_state['status'] !== 'indexing' ) {
+				asmi_debug_log( 'WP INDEX TICK: Process cancelled during language processing, stopping' );
+				wp_clear_scheduled_hook( ASMI_WP_INDEX_TICK_ACTION );
+				return;
+			}
+			
 			$state['current_lang'] = $lang_locale;
 			asmi_set_wp_index_state( $state );
 
 			$result = asmi_index_single_wp_post_robust( $post_id, array( $lang_locale ) );
+			
+			// Check if indexing was cancelled during ChatGPT processing
+			if ( $result === false ) {
+				asmi_debug_log( 'WP INDEX TICK: Indexing was cancelled during post processing' );
+				wp_clear_scheduled_hook( ASMI_WP_INDEX_TICK_ACTION );
+				return;
+			}
 			
 			$state['chatgpt_used'] += $result['chatgpt_used'] ?? 0;
 			$state['fallback_used'] += $result['fallback_used'] ?? 0;
@@ -232,12 +291,32 @@ function asmi_wp_index_tick_handler() {
 			$state['processed_posts'] . '/' . $state['total_posts'] );
 	}
 
+	$batch_duration = microtime( true ) - $batch_start_time;
+	asmi_debug_log( 'WP INDEX TICK: Batch completed in ' . round( $batch_duration, 2 ) . ' seconds' );
+
+	// Adaptiere Batch-Size basierend auf Verarbeitungszeit
+	if ( $batch_duration > 30 && $state['batch_size'] > 1 ) {
+		$state['batch_size'] = max( 1, $state['batch_size'] - 1 );
+		asmi_debug_log( 'WP INDEX TICK: Reduced batch size to ' . $state['batch_size'] . ' due to slow processing' );
+	} elseif ( $batch_duration < 5 && $state['batch_size'] < 10 && $memory_percentage_used < 60 ) {
+		$state['batch_size'] = min( 10, $state['batch_size'] + 1 );
+		asmi_debug_log( 'WP INDEX TICK: Increased batch size to ' . $state['batch_size'] . ' due to fast processing' );
+	}
+
 	// Aktualisiere den State vor dem nächsten Tick
 	asmi_set_wp_index_state( $state );
 	
-	// CRITICAL FIX: Verwende die robuste Scheduling-Funktion statt direktem wp_schedule_single_event
+	// CRITICAL: Prüfe nochmals ob der Prozess noch aktiv ist bevor der nächste Tick geplant wird
+	$final_state = asmi_get_wp_index_state();
+	if ( $final_state['status'] !== 'indexing' ) {
+		asmi_debug_log( 'WP INDEX TICK: Process no longer active after batch, not scheduling next tick' );
+		wp_clear_scheduled_hook( ASMI_WP_INDEX_TICK_ACTION );
+		return;
+	}
+	
+	// Schedule next tick with appropriate delay
 	asmi_debug_log( 'WP INDEX TICK: Scheduling next tick...' );
-	asmi_schedule_wp_index_tick();
+	asmi_schedule_wp_index_tick( false ); // false = mit Verzögerung
 }
 add_action( ASMI_WP_INDEX_TICK_ACTION, 'asmi_wp_index_tick_handler' );
 
@@ -246,10 +325,18 @@ add_action( ASMI_WP_INDEX_TICK_ACTION, 'asmi_wp_index_tick_handler' );
  *
  * @param int   $post_id Die ID des zu indexierenden Beitrags.
  * @param array $languages Ein Array der zu indexierenden Sprach-Locales.
- * @return array Statistiken über verwendete APIs und Fehler.
+ * @return array|false Statistiken über verwendete APIs und Fehler, oder false wenn abgebrochen.
  */
 function asmi_index_single_wp_post_robust( $post_id, $languages = array() ) {
 	global $wpdb;
+	
+	// CRITICAL: Prüfe ob Indexierung noch aktiv ist
+	$current_state = asmi_get_wp_index_state();
+	if ( $current_state['status'] !== 'indexing' ) {
+		asmi_debug_log( sprintf( 'Post %d: Indexing cancelled, skipping processing', $post_id ) );
+		return false;
+	}
+	
 	$original_post_obj = get_post( $post_id );
 	if ( ! $original_post_obj || wp_is_post_revision( $post_id ) ) {
 		return array( 
@@ -289,6 +376,13 @@ function asmi_index_single_wp_post_robust( $post_id, $languages = array() ) {
 	
 	// Indexierung für alle Zielsprachen
 	foreach ( $languages as $lang_locale ) {
+		// CRITICAL: Prüfe vor jeder Sprache ob noch aktiv
+		$current_state = asmi_get_wp_index_state();
+		if ( $current_state['status'] !== 'indexing' ) {
+			asmi_debug_log( sprintf( 'Post %d (%s): Indexing cancelled during language processing', $post_id, $lang_locale ) );
+			return false;
+		}
+		
 		$lang_slug_short = substr( $lang_locale, 0, 2 );
 		
 		// Prüfe ob bereits ein manuell importierter Eintrag existiert
@@ -314,6 +408,13 @@ function asmi_index_single_wp_post_robust( $post_id, $languages = array() ) {
 		
 		// Hauptverarbeitung mit ChatGPT (mit Timeout-Management)
 		if ( $use_chatgpt && function_exists( 'asmi_process_with_chatgpt_cached_robust' ) ) {
+			// CRITICAL: Check again before starting potentially long-running ChatGPT call
+			$current_state = asmi_get_wp_index_state();
+			if ( $current_state['status'] !== 'indexing' ) {
+				asmi_debug_log( sprintf( 'Post %d (%s): Cancelled before ChatGPT call', $post_id, $lang_locale ) );
+				return false;
+			}
+			
 			$chatgpt_lang = ( $lang_slug_short === 'en' ) ? 'en' : 'de';
 			$chatgpt_result = asmi_process_with_chatgpt_cached_robust( 
 				$original_title, 
@@ -321,6 +422,13 @@ function asmi_index_single_wp_post_robust( $post_id, $languages = array() ) {
 				$chatgpt_lang,
 				$content_hash_base
 			);
+			
+			// CRITICAL: Check again after ChatGPT call completed
+			$current_state = asmi_get_wp_index_state();
+			if ( $current_state['status'] !== 'indexing' ) {
+				asmi_debug_log( sprintf( 'Post %d (%s): Cancelled after ChatGPT call', $post_id, $lang_locale ) );
+				return false;
+			}
 			
 			if ( ! is_wp_error( $chatgpt_result ) ) {
 				// ChatGPT erfolgreich
@@ -430,6 +538,13 @@ function asmi_index_single_wp_post_robust( $post_id, $languages = array() ) {
 			$stats['fallback_used']++;
 		}
 
+		// Final check before saving to database
+		$current_state = asmi_get_wp_index_state();
+		if ( $current_state['status'] !== 'indexing' ) {
+			asmi_debug_log( sprintf( 'Post %d (%s): Cancelled before database save', $post_id, $lang_locale ) );
+			return false;
+		}
+
 		// Speichere in Datenbank
 		$result = $wpdb->replace(
 			$table_name,
@@ -476,6 +591,9 @@ function asmi_finish_wp_indexing( $state ) {
 	$state['finished_at'] = time();
 	$state['current_action'] = '';
 	
+	// Stelle sicher, dass keine weiteren Ticks geplant sind
+	wp_clear_scheduled_hook( ASMI_WP_INDEX_TICK_ACTION );
+	
 	// Bereinige nicht mehr existierende Posts
 	$existing_post_ids = $wpdb->get_col( 
 		"SELECT DISTINCT post_id FROM {$wpdb->posts} WHERE post_status = 'publish'"
@@ -515,8 +633,9 @@ function asmi_finish_wp_indexing( $state ) {
 	asmi_set_wp_index_state( $state );
 	
 	asmi_debug_log( sprintf( 
-		'WP INDEX COMPLETE: %d posts processed | ChatGPT: %d | Fallback: %d | Protected: %d | Timeouts: %d | API Errors: %d',
+		'WP INDEX COMPLETE: %d posts processed in %d seconds | ChatGPT: %d | Fallback: %d | Protected: %d | Timeouts: %d | API Errors: %d',
 		$state['processed_posts'],
+		$state['finished_at'] - $state['started_at'],
 		$state['chatgpt_used'],
 		$state['fallback_used'],
 		$state['manually_imported'],
@@ -537,30 +656,42 @@ function asmi_finish_wp_indexing( $state ) {
  * @return void
  */
 function asmi_cancel_wp_indexing() {
+	// CRITICAL: Sofort alle geplanten Hooks entfernen
 	wp_clear_scheduled_hook( ASMI_WP_INDEX_TICK_ACTION );
 	
 	$state = asmi_get_wp_index_state();
-	if ( $state['status'] === 'indexing' ) {
-		$state['status'] = 'idle';
-		$state['error'] = __( 'WordPress indexing was manually canceled.', 'asmi-search' );
-		$state['finished_at'] = time();
-		
-		$state['last_run'] = array(
-			'type'               => __( 'WordPress Content Indexing', 'asmi-search' ),
-			'status'             => 'cancelled',
-			'finished_at'        => $state['finished_at'],
-			'duration'           => $state['finished_at'] - ( $state['started_at'] > 0 ? $state['started_at'] : time() ),
-			'processed'          => $state['processed_posts'],
-			'chatgpt_used'       => $state['chatgpt_used'],
-			'fallback_used'      => $state['fallback_used'],
-			'manually_imported'  => $state['manually_imported'],
-			'timeout_errors'     => $state['timeout_errors'],
-			'api_errors'         => $state['api_errors'],
-		);
-		
-		asmi_set_wp_index_state( $state );
-		asmi_debug_log( 'WP INDEX: Indexing canceled by user' );
+	
+	// Setze Status auf abgebrochen, unabhängig vom aktuellen Status
+	$state['status'] = 'cancelled';
+	$state['error'] = __( 'WordPress indexing was manually canceled.', 'asmi-search' );
+	$state['finished_at'] = time();
+	
+	// Berechne die Dauer korrekt
+	$duration = 0;
+	if ( $state['started_at'] > 0 ) {
+		$duration = $state['finished_at'] - $state['started_at'];
 	}
+	
+	$state['last_run'] = array(
+		'type'               => __( 'WordPress Content Indexing', 'asmi-search' ),
+		'status'             => 'cancelled',
+		'finished_at'        => $state['finished_at'],
+		'duration'           => $duration,
+		'processed'          => $state['processed_posts'] ?? 0,
+		'chatgpt_used'       => $state['chatgpt_used'] ?? 0,
+		'fallback_used'      => $state['fallback_used'] ?? 0,
+		'manually_imported'  => $state['manually_imported'] ?? 0,
+		'timeout_errors'     => $state['timeout_errors'] ?? 0,
+		'api_errors'         => $state['api_errors'] ?? 0,
+	);
+	
+	// Speichere den abgebrochenen Status sofort
+	asmi_set_wp_index_state( $state );
+	
+	// Nochmals sicherstellen, dass keine Hooks mehr existieren
+	wp_clear_scheduled_hook( ASMI_WP_INDEX_TICK_ACTION );
+	
+	asmi_debug_log( 'WP INDEX: Indexing canceled by user - all scheduled tasks cleared' );
 }
 
 /**
@@ -587,6 +718,13 @@ function asmi_hook_save_post( $post_id, $post ) {
 		array();
 		
 	if ( in_array( $post->post_type, $post_types, true ) && 'publish' === $post->post_status ) {
+		// CRITICAL: Prüfe ob gerade eine Indexierung läuft
+		$state = asmi_get_wp_index_state();
+		if ( $state['status'] === 'indexing' ) {
+			asmi_debug_log( sprintf( 'Skipping index update for post %d - indexing in progress', $post_id ) );
+			return;
+		}
+		
 		asmi_debug_log( sprintf( 'Updating index for post %d after save', $post_id ) );
 		asmi_index_single_wp_post_robust( $post_id );
 	}
