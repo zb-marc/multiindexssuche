@@ -353,9 +353,11 @@ jQuery(function($){
             $process.find('.asmi-wp-current-title').text(wpState.current_post_title || '-');
             $process.find('.asmi-wp-current-lang').text(wpState.current_lang || '-');
             
-            // Update statistics
+            // Update statistics with new fields
             $process.find('.asmi-wp-chatgpt-used').text(wpState.chatgpt_used || 0);
             $process.find('.asmi-wp-fallback-used').text(wpState.fallback_used || 0);
+            $process.find('.asmi-wp-skipped').text(wpState.skipped_unchanged || 0);
+            $process.find('.asmi-wp-updated').text(wpState.updated_posts || 0);
             $process.find('.asmi-wp-timeout-errors').text(wpState.timeout_errors || 0);
             $process.find('.asmi-wp-api-errors').text(wpState.api_errors || 0);
             $process.find('.asmi-wp-manually-imported').text(wpState.manually_imported || 0);
@@ -371,6 +373,16 @@ jQuery(function($){
                     <li><strong>Letzte WordPress-Indexierung:</strong> ${statusText} am ${this.formatDate(lastRun.finished_at)}</li>
                     <li><strong>Dauer:</strong> ${this.formatDuration(lastRun.duration)}</li>
                     <li><strong>Posts verarbeitet:</strong> ${lastRun.processed}</li>
+                `;
+                
+                // Erweiterte Statistiken mit Änderungserkennung
+                if (typeof lastRun.skipped_unchanged !== 'undefined' && typeof lastRun.updated_posts !== 'undefined') {
+                    summaryHtml += `
+                        <li><strong>Aktualisiert:</strong> ${lastRun.updated_posts} | <strong>Übersprungen (unverändert):</strong> ${lastRun.skipped_unchanged}</li>
+                    `;
+                }
+                
+                summaryHtml += `
                     <li><strong>ChatGPT verwendet:</strong> ${lastRun.chatgpt_used} | <strong>Fallback:</strong> ${lastRun.fallback_used}</li>
                     <li><strong>Timeout-Fehler:</strong> ${lastRun.timeout_errors} | <strong>API-Fehler:</strong> ${lastRun.api_errors}</li>
                     <li><strong>Geschützte Imports:</strong> ${lastRun.manually_imported}</li>

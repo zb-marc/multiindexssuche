@@ -65,11 +65,13 @@ function asmi_start_wp_content_indexing() {
 	$total_posts = count( $post_ids );
 	asmi_debug_log( 'WP INDEX: Starting with ' . $total_posts . ' posts' );
 
-	// Initialisiere den State
+	// Initialisiere den State mit erweiterten Statistiken
 	$state = array(
 		'status'               => 'indexing',
 		'total_posts'          => $total_posts,
 		'processed_posts'      => 0,
+		'skipped_unchanged'    => 0, // NEU: Anzahl übersprungener unveränderter Posts
+		'updated_posts'        => 0,  // NEU: Anzahl aktualisierter Posts
 		'current_post'         => 0,
 		'current_post_title'   => '',
 		'current_lang'         => '',
@@ -82,7 +84,7 @@ function asmi_start_wp_content_indexing() {
 		'languages'            => array( 'de_DE', 'en_GB' ),
 		'current_action'       => __( 'Preparing indexing...', 'asmi-search' ),
 		'started_at'           => time(),
-		'batch_size'           => 5, // Kleinere Batches für bessere Stabilität
+		'batch_size'           => 5,
 		'error'                => '',
 	);
 
@@ -186,6 +188,8 @@ function asmi_wp_index_tick_handler() {
 			'finished_at'        => $state['finished_at'],
 			'duration'           => $state['finished_at'] - $state['started_at'],
 			'processed'          => $state['processed_posts'],
+			'skipped_unchanged'  => $state['skipped_unchanged'] ?? 0,
+			'updated_posts'      => $state['updated_posts'] ?? 0,
 			'chatgpt_used'       => $state['chatgpt_used'],
 			'fallback_used'      => $state['fallback_used'],
 			'manually_imported'  => $state['manually_imported'],
@@ -275,11 +279,14 @@ function asmi_wp_index_tick_handler() {
 				return;
 			}
 			
+			// Aktualisiere die erweiterten Statistiken
 			$state['chatgpt_used'] += $result['chatgpt_used'] ?? 0;
 			$state['fallback_used'] += $result['fallback_used'] ?? 0;
 			$state['manually_imported'] += $result['manually_imported'] ?? 0;
 			$state['timeout_errors'] += $result['timeout_errors'] ?? 0;
 			$state['api_errors'] += $result['api_errors'] ?? 0;
+			$state['skipped_unchanged'] += $result['skipped_unchanged'] ?? 0;
+			$state['updated_posts'] += $result['updated_posts'] ?? 0;
 		}
 
 		$state['processed_posts']++;
@@ -321,6 +328,93 @@ function asmi_wp_index_tick_handler() {
 add_action( ASMI_WP_INDEX_TICK_ACTION, 'asmi_wp_index_tick_handler' );
 
 /**
+ * Prüft ob ein Post neu indexiert werden muss.
+ *
+ * @param int    $post_id Die Post-ID.
+ * @param string $lang_locale Die Sprache.
+ * @return array|false Array mit Info über bestehenden Eintrag oder false wenn Neuindexierung nötig.
+ */
+function asmi_check_if_post_needs_reindex( $post_id, $lang_locale ) {
+	global $wpdb;
+	$table_name = $wpdb->prefix . ASMI_INDEX_TABLE;
+	
+	// Hole den aktuellen Post
+	$post = get_post( $post_id );
+	if ( ! $post ) {
+		return false;
+	}
+	
+	// Hole den bestehenden Index-Eintrag
+	$existing = $wpdb->get_row(
+		$wpdb->prepare(
+			"SELECT content_hash, last_modified, indexed_at,
+			CASE WHEN content_hash LIKE '%manual_import%' THEN 1 ELSE 0 END as is_manual
+			FROM $table_name 
+			WHERE source_id = %s AND lang = %s AND source_type = 'wordpress'",
+			$post_id,
+			$lang_locale
+		),
+		ARRAY_A
+	);
+	
+	// Kein Eintrag vorhanden = Neuindexierung nötig
+	if ( ! $existing ) {
+		asmi_debug_log( sprintf( 'Post %d (%s): No existing entry, needs indexing', $post_id, $lang_locale ) );
+		return false;
+	}
+	
+	// Manuell importierte Einträge werden geschützt
+	if ( $existing['is_manual'] ) {
+		asmi_debug_log( sprintf( 'Post %d (%s): Protected manual import, skipping', $post_id, $lang_locale ) );
+		return array( 'skip_reason' => 'manual_import' );
+	}
+	
+	// Prüfe ob sich der Post seit der letzten Indexierung geändert hat
+	$post_modified_time = strtotime( $post->post_modified );
+	$last_indexed_time = strtotime( $existing['indexed_at'] );
+	
+	// Wenn der Post NACH der letzten Indexierung geändert wurde
+	if ( $post_modified_time > $last_indexed_time ) {
+		asmi_debug_log( sprintf( 
+			'Post %d (%s): Modified after last indexing (modified: %s, indexed: %s)', 
+			$post_id, 
+			$lang_locale,
+			$post->post_modified,
+			$existing['indexed_at']
+		) );
+		return false;
+	}
+	
+	// NEU: Generiere aktuellen Content-Hash zum Vergleich
+	$original_title = get_the_title( $post_id );
+	$original_content_raw = $post->post_content;
+	$rendered_content = apply_filters( 'the_content', $original_content_raw );
+	$current_content_hash_base = md5( $original_title . '|' . $rendered_content );
+	
+	// Extrahiere den Basis-Hash aus dem gespeicherten Hash (vor dem ersten |)
+	$existing_hash_parts = explode( '|', $existing['content_hash'] );
+	$existing_base_hash = $existing_hash_parts[0] ?? '';
+	
+	// Vergleiche die Basis-Hashes
+	if ( strpos( $existing['content_hash'], $current_content_hash_base ) === 0 ) {
+		asmi_debug_log( sprintf( 
+			'Post %d (%s): Content unchanged (hash match), skipping', 
+			$post_id, 
+			$lang_locale 
+		) );
+		return array( 'skip_reason' => 'unchanged' );
+	}
+	
+	// Content hat sich geändert
+	asmi_debug_log( sprintf( 
+		'Post %d (%s): Content changed (hash mismatch), needs reindexing', 
+		$post_id, 
+		$lang_locale 
+	) );
+	return false;
+}
+
+/**
  * Robuste Version der WordPress-Post-Indexierung mit verbessertem Timeout-Management.
  *
  * @param int   $post_id Die ID des zu indexierenden Beitrags.
@@ -344,7 +438,9 @@ function asmi_index_single_wp_post_robust( $post_id, $languages = array() ) {
 			'fallback_used' => 0, 
 			'manually_imported' => 0,
 			'timeout_errors' => 0,
-			'api_errors' => 0
+			'api_errors' => 0,
+			'skipped_unchanged' => 0,
+			'updated_posts' => 0,
 		);
 	}
 
@@ -371,7 +467,9 @@ function asmi_index_single_wp_post_robust( $post_id, $languages = array() ) {
 		'fallback_used' => 0, 
 		'manually_imported' => 0,
 		'timeout_errors' => 0,
-		'api_errors' => 0
+		'api_errors' => 0,
+		'skipped_unchanged' => 0,
+		'updated_posts' => 0,
 	);
 	
 	// Indexierung für alle Zielsprachen
@@ -385,23 +483,20 @@ function asmi_index_single_wp_post_robust( $post_id, $languages = array() ) {
 		
 		$lang_slug_short = substr( $lang_locale, 0, 2 );
 		
-		// Prüfe ob bereits ein manuell importierter Eintrag existiert
-		$existing_entry = $wpdb->get_row(
-			$wpdb->prepare(
-				"SELECT content_hash, CASE WHEN content_hash LIKE '%manual_import%' THEN 1 ELSE 0 END as is_manual
-				FROM $table_name 
-				WHERE source_id = %s AND lang = %s AND source_type = 'wordpress'",
-				$post_id, $lang_locale
-			),
-			ARRAY_A
-		);
-		
-		// Schütze manuell importierte Einträge
-		if ( $existing_entry && $existing_entry['is_manual'] ) {
-			$stats['manually_imported']++;
-			asmi_debug_log( sprintf( 'Post %d (%s): Protected manual import', $post_id, $lang_locale ) );
+		// NEU: Prüfe ob Neuindexierung nötig ist
+		$check_result = asmi_check_if_post_needs_reindex( $post_id, $lang_locale );
+		if ( is_array( $check_result ) ) {
+			// Post muss nicht neu indexiert werden
+			if ( $check_result['skip_reason'] === 'manual_import' ) {
+				$stats['manually_imported']++;
+			} elseif ( $check_result['skip_reason'] === 'unchanged' ) {
+				$stats['skipped_unchanged']++;
+			}
 			continue;
 		}
+		
+		// Post muss neu indexiert werden
+		$stats['updated_posts']++;
 		
 		// Prüfe ob ChatGPT verfügbar ist
 		$use_chatgpt = ! empty( $o['use_chatgpt'] ) && ! empty( $o['chatgpt_api_key'] );
@@ -479,7 +574,7 @@ function asmi_index_single_wp_post_robust( $post_id, $languages = array() ) {
 					home_url( '/en' . wp_make_link_relative( $original_url ) ) : 
 					$original_url;
 				
-				$content_hash = hash( 'sha256', $content_hash_base . '|chatgpt_v3|' . $lang_locale );
+				$content_hash = $content_hash_base . '|chatgpt_v3|' . $lang_locale;
 				$stats['chatgpt_used']++;
 				
 			} else {
@@ -507,7 +602,7 @@ function asmi_index_single_wp_post_robust( $post_id, $languages = array() ) {
 					home_url( '/en' . wp_make_link_relative( $original_url ) ) : 
 					$original_url;
 				
-				$content_hash = hash( 'sha256', $content_hash_base . '|error_fallback_v1|' . $lang_locale );
+				$content_hash = $content_hash_base . '|error_fallback_v1|' . $lang_locale;
 				$stats['fallback_used']++;
 			}
 		} else {
@@ -534,7 +629,7 @@ function asmi_index_single_wp_post_robust( $post_id, $languages = array() ) {
 				home_url( '/en' . wp_make_link_relative( $original_url ) ) : 
 				$original_url;
 			
-			$content_hash = hash( 'sha256', $content_hash_base . '|fallback_v1|' . $lang_locale );
+			$content_hash = $content_hash_base . '|fallback_v1|' . $lang_locale;
 			$stats['fallback_used']++;
 		}
 
@@ -616,13 +711,15 @@ function asmi_finish_wp_indexing( $state ) {
 		}
 	}
 	
-	// Setze Last Run Statistiken
+	// Setze Last Run Statistiken mit erweiterten Informationen
 	$state['last_run'] = array(
 		'type'               => __( 'WordPress Content Indexing', 'asmi-search' ),
 		'status'             => 'completed',
 		'finished_at'        => $state['finished_at'],
 		'duration'           => $state['finished_at'] - $state['started_at'],
 		'processed'          => $state['processed_posts'],
+		'skipped_unchanged'  => $state['skipped_unchanged'] ?? 0,
+		'updated_posts'      => $state['updated_posts'] ?? 0,
 		'chatgpt_used'       => $state['chatgpt_used'],
 		'fallback_used'      => $state['fallback_used'],
 		'manually_imported'  => $state['manually_imported'],
@@ -633,8 +730,10 @@ function asmi_finish_wp_indexing( $state ) {
 	asmi_set_wp_index_state( $state );
 	
 	asmi_debug_log( sprintf( 
-		'WP INDEX COMPLETE: %d posts processed in %d seconds | ChatGPT: %d | Fallback: %d | Protected: %d | Timeouts: %d | API Errors: %d',
+		'WP INDEX COMPLETE: %d posts processed (%d updated, %d unchanged) in %d seconds | ChatGPT: %d | Fallback: %d | Protected: %d | Timeouts: %d | API Errors: %d',
 		$state['processed_posts'],
+		$state['updated_posts'] ?? 0,
+		$state['skipped_unchanged'] ?? 0,
 		$state['finished_at'] - $state['started_at'],
 		$state['chatgpt_used'],
 		$state['fallback_used'],
@@ -678,6 +777,8 @@ function asmi_cancel_wp_indexing() {
 		'finished_at'        => $state['finished_at'],
 		'duration'           => $duration,
 		'processed'          => $state['processed_posts'] ?? 0,
+		'skipped_unchanged'  => $state['skipped_unchanged'] ?? 0,
+		'updated_posts'      => $state['updated_posts'] ?? 0,
 		'chatgpt_used'       => $state['chatgpt_used'] ?? 0,
 		'fallback_used'      => $state['fallback_used'] ?? 0,
 		'manually_imported'  => $state['manually_imported'] ?? 0,
@@ -760,9 +861,11 @@ function asmi_reset_translation_cache() {
 	global $wpdb;
 	$table_name = $wpdb->prefix . ASMI_INDEX_TABLE;
 	
+	// NEU: Setze indexed_at auf ein sehr altes Datum statt content_hash zu löschen
+	// Dies erzwingt eine Neuindexierung bei der nächsten Prüfung
 	$updated = $wpdb->query( 
 		"UPDATE $table_name 
-		SET content_hash = NULL 
+		SET indexed_at = '2000-01-01 00:00:00' 
 		WHERE source_type = 'wordpress' 
 		AND content_hash NOT LIKE '%manual_import%'"
 	);

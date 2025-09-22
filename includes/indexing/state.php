@@ -65,6 +65,8 @@ function asmi_get_wp_index_state() {
 		'status'               => 'idle',
 		'total_posts'          => 0,
 		'processed_posts'      => 0,
+		'skipped_unchanged'    => 0,  // NEU: Anzahl übersprungener unveränderter Posts
+		'updated_posts'        => 0,   // NEU: Anzahl tatsächlich aktualisierter Posts
 		'current_post'         => 0,
 		'current_post_title'   => '',
 		'current_lang'         => '',

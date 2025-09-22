@@ -2,7 +2,7 @@
 /**
  * Plugin Name: AS Multiindex Search
  * Description: Eine föderierte Suche, die native WordPress-Inhalte und mehrsprachige, externe Produktfeeds (XML, CSV, JSON) in jeder AJAX-Suche nahtlos zusammenführt.
- * Version:     1.9.4
+ * Version:     1.10.0
  * Author:      Marc Mirschel
  * Author URI:  https://mirschel.biz
  * Plugin URI:  https://akkusys.de
@@ -16,7 +16,7 @@
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 // Plugin-Konstanten.
-define( 'ASMI_VERSION', '1.9.4' );
+define( 'ASMI_VERSION', '1.10.0' );
 define( 'ASMI_OPT', 'asmi_options' );
 define( 'ASMI_SLUG', 'asmi-settings' );
 define( 'ASMI_REST_NS', 'asmi/v1' );

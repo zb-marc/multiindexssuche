@@ -89,9 +89,13 @@ function asmi_render_tab_index( $o, $nonces ) {
 			<div id="asmi-wp-stats-container" style="display: flex; gap: 15px; font-size: 12px; margin: 10px 0;">
 				<div>ChatGPT: <strong><span class="asmi-wp-chatgpt-used">0</span></strong></div>
 				<div>Fallback: <strong><span class="asmi-wp-fallback-used">0</span></strong></div>
+				<div style="color: #46b450;"><?php esc_html_e( 'Skipped:', 'asmi-search' ); ?> <strong><span class="asmi-wp-skipped">0</span></strong></div>
+				<div style="color: #0073aa;"><?php esc_html_e( 'Updated:', 'asmi-search' ); ?> <strong><span class="asmi-wp-updated">0</span></strong></div>
+				<div style="color: #996800;"><?php esc_html_e( 'Protected:', 'asmi-search' ); ?> <strong><span class="asmi-wp-manually-imported">0</span></strong></div>
+			</div>
+			<div id="asmi-wp-errors-container" style="display: flex; gap: 15px; font-size: 12px; margin: 5px 0;">
 				<div style="color: #d63638;">Timeouts: <strong><span class="asmi-wp-timeout-errors">0</span></strong></div>
 				<div style="color: #d63638;">API Errors: <strong><span class="asmi-wp-api-errors">0</span></strong></div>
-				<div style="color: #46b450;">Protected: <strong><span class="asmi-wp-manually-imported">0</span></strong></div>
 			</div>
 			<p><small>
 				<strong><?php esc_html_e( 'Started:', 'asmi-search' ); ?></strong> <span class="asmi-wp-state-started">...</span> |
@@ -132,6 +136,10 @@ function asmi_render_tab_index( $o, $nonces ) {
 				<span class="as-glossar-toggle-label">
 					<?php esc_html_e( 'Automatically start feed indexing daily at 1:00 AM.', 'asmi-search' ); ?>
 				</span>
+				<p class="description" style="margin-top: 8px;">
+					<strong><?php esc_html_e( 'Performance optimization:', 'asmi-search' ); ?></strong> 
+					<?php esc_html_e( 'Only changed WordPress content will be re-indexed. Unchanged posts are automatically skipped to save API costs and processing time.', 'asmi-search' ); ?>
+				</p>
 			</td>
 		</tr>
 		<tr>
@@ -147,7 +155,7 @@ function asmi_render_tab_index( $o, $nonces ) {
 				<!-- WordPress-Indexierung Buttons -->
 				<div style="margin-bottom: 15px;">
 					<h4 style="margin: 0 0 8px 0;"><?php esc_html_e( 'WordPress Content', 'asmi-search' ); ?></h4>
-					<button id="asmi-reindex-wp-button" type="button" class="button button-primary" data-action="reindex_wp" data-nonce="<?php echo esc_attr( $nonces['reindex'] ); ?>" data-confirm-msg="<?php esc_attr_e( 'Are you sure you want to re-index all WordPress content? This will process all posts with ChatGPT if configured.', 'asmi-search' ); ?>"><?php esc_html_e( 'Re-index WordPress Content', 'asmi-search' ); ?></button>
+					<button id="asmi-reindex-wp-button" type="button" class="button button-primary" data-action="reindex_wp" data-nonce="<?php echo esc_attr( $nonces['reindex'] ); ?>" data-confirm-msg="<?php esc_attr_e( 'Are you sure you want to re-index all WordPress content? Only changed content will be processed if ChatGPT is configured.', 'asmi-search' ); ?>"><?php esc_html_e( 'Re-index WordPress Content', 'asmi-search' ); ?></button>
 					<button id="asmi-cancel-wp-button" type="button" class="button button-secondary" style="display:none;" data-action="cancel_wp" data-nonce="<?php echo esc_attr( $nonces['cancel'] ); ?>"><?php esc_html_e( 'Cancel WP Indexing', 'asmi-search' ); ?></button>
 				</div>
 
