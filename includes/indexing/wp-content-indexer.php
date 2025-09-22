@@ -9,6 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+
 /**
  * Startet die asynchrone WordPress-Inhaltsindexierung.
  *
