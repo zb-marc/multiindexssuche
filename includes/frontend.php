@@ -157,3 +157,44 @@ add_shortcode(
 		);
 	}
 );
+
+/**
+ * Schließt die konfigurierten Post IDs von der WordPress-Hauptsuche aus.
+ * Dies stellt sicher, dass die in den Plugin-Einstellungen definierten
+ * ausgeschlossenen Posts auch nicht in den nativen WordPress-Suchergebnissen erscheinen.
+ *
+ * @param WP_Query $query Das WP_Query-Objekt.
+ * @return void
+ */
+function asmi_exclude_posts_from_wordpress_search( $query ) {
+	// Nur auf der Hauptsuche im Frontend anwenden
+	if ( ! is_admin() && $query->is_main_query() && $query->is_search() ) {
+		$o = asmi_get_opts();
+		
+		// Prüfe ob ausgeschlossene IDs konfiguriert sind
+		if ( ! empty( $o['excluded_ids'] ) ) {
+			// Konvertiere die kommaseparierte Liste in ein Array von Integers
+			$excluded_ids = array_map( 'intval', array_filter( explode( ',', $o['excluded_ids'] ) ) );
+			
+			if ( ! empty( $excluded_ids ) ) {
+				// Hole eventuell bereits vorhandene ausgeschlossene Posts
+				$existing_excluded = $query->get( 'post__not_in' );
+				
+				if ( ! empty( $existing_excluded ) && is_array( $existing_excluded ) ) {
+					// Merge mit bereits ausgeschlossenen Posts
+					$excluded_ids = array_unique( array_merge( $existing_excluded, $excluded_ids ) );
+				}
+				
+				// Setze die ausgeschlossenen Post IDs
+				$query->set( 'post__not_in', $excluded_ids );
+				
+				// Debug-Log wenn aktiviert
+				$debug_mode = $o['debug_mode'] ?? 0;
+				if ( ! empty( $debug_mode ) ) {
+					asmi_debug_log( 'WordPress Search: Excluding posts ' . implode( ', ', $excluded_ids ) . ' from search results' );
+				}
+			}
+		}
+	}
+}
+add_action( 'pre_get_posts', 'asmi_exclude_posts_from_wordpress_search' );
