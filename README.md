@@ -280,7 +280,7 @@ define('WP_MAX_MEMORY_LIMIT', '512M');
 ### Support
 - **Website**: [https://akkusys.de](https://akkusys.de)
 - **Entwickler**: Marc Mirschel
-- **Entwickler-Website**: [https://mirschel.biz](https://mirschel.biz)
+- **Entwickler-Website**: [https://zoobro.de](https://zoobro.de)
 
 ### Fehler melden
 Bitte erstellen Sie detaillierte Fehlerberichte mit:
