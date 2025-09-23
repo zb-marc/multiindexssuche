@@ -298,7 +298,7 @@ Pull Requests sind willkommen! Bitte beachten Sie:
 
 ## 📄 Lizenz
 
-Dieses Plugin ist unter der GPL-2.0+ Lizenz veröffentlicht. Details siehe [LICENSE](LICENSE) Datei.
+Dieses Plugin ist unter der GPL-2.0+ Lizenz veröffentlicht. 
 
 ## 🙏 Credits
 
