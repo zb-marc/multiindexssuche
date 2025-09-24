@@ -16,7 +16,7 @@
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 // Plugin-Konstanten.
-define( 'ASMI_VERSION', '1.10.2' );
+define( 'ASMI_VERSION', '1.10.3' );
 define( 'ASMI_OPT', 'asmi_options' );
 define( 'ASMI_SLUG', 'asmi-settings' );
 define( 'ASMI_REST_NS', 'asmi/v1' );
