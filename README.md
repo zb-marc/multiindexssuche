@@ -3,7 +3,7 @@
 [![WordPress](https://img.shields.io/badge/WordPress-5.8%2B-blue.svg)](https://wordpress.org/)
 [![PHP](https://img.shields.io/badge/PHP-7.4%2B-purple.svg)](https://php.net/)
 [![License](https://img.shields.io/badge/License-GPL--2.0%2B-green.svg)](https://www.gnu.org/licenses/gpl-2.0.html)
-[![Version](https://img.shields.io/badge/Version-1.10.3-orange.svg)](https://github.com/your-repo/as-multiindex-search/releases)
+[![Version](https://img.shields.io/badge/Version-1.10.3-orange.svg)](https://github.com/zb-marc/multiindexssuche/releases)
 
 Eine föderierte Suche für WordPress, die native WordPress-Inhalte und mehrsprachige, externe Produktfeeds (XML, CSV, JSON) in einer nahtlosen AJAX-Suche zusammenführt.
 
@@ -280,7 +280,7 @@ define('WP_MAX_MEMORY_LIMIT', '512M');
 ### Support
 - **Website**: [https://zoobro.de](https://zoobro.de)
 - **Entwickler**: Marc Mirschel
-- **Entwickler-Website**: [https://mirschel.biz](https://mirschel.biz)
+- **Entwickler-Website**: [https://zoobro.de](https://zoobro.de)
 
 ### Fehler melden
 Bitte erstellen Sie detaillierte Fehlerberichte mit:
@@ -298,7 +298,7 @@ Pull Requests sind willkommen! Bitte beachten Sie:
 
 ## 📄 Lizenz
 
-Dieses Plugin ist unter der GPL-2.0+ Lizenz veröffentlicht. Details siehe [LICENSE](LICENSE) Datei.
+Dieses Plugin ist unter der GPL-2.0+ Lizenz veröffentlicht. 
 
 ## 🙏 Credits
 
