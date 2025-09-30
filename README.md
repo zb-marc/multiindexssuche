@@ -259,18 +259,32 @@ define('WP_MAX_MEMORY_LIMIT', '512M');
 
 ## 📈 Changelog
 
-### Version 1.10.3 (Aktuell)
+### Version 1.10.5 (29. September 2025)
+- **Kritischer Bugfix**: Behebt "Cannot redeclare" Fatal Errors bei asynchroner Verarbeitung
+- **Include-Guards**: Robuster Schutz gegen Mehrfacheinbindungen mit `function_exists()` 
+- **SQL-Fix**: Korrektur der Spaltenbezeichnung in Cleanup-Funktion (`ID` statt `post_id`)
+- **REST API Stabilität**: Routes werden nun zuverlässig registriert
+- **Performance**: Stabile Verarbeitung auch bei hoher Last und parallelen Requests
+
+### Version 1.10.4 (28. September 2025)
+- **Asynchrone Stabilität**: Verbesserte Fehlerbehandlung bei WordPress-Indexierung
+- **Memory Management**: Optimierte Speichernutzung bei großen Batches
+- **Cache-Optimierung**: Intelligentere Hash-Vergleiche verhindern unnötige Neuindexierung
+- **Statistik-Erweiterung**: Neue Metriken für übersprungene und aktualisierte Posts
+- **Adaptive Batch-Size**: Automatische Anpassung basierend auf Verarbeitungsgeschwindigkeit
+
+### Version 1.10.3 (September 2025)
 - Verbesserte ChatGPT-Integration mit Assistant-Support
 - Erweiterte Marken-Erkennung
 - Optimierte Bindestrich-Suche
 - Bugfixes bei der Spracherkennung
 
-### Version 1.10.0
+### Version 1.10.0 (September 2025)
 - ChatGPT-Integration hinzugefügt
 - Asynchrone WordPress-Indexierung
 - Export/Import-Funktionalität
 
-### Version 1.9.0
+### Version 1.9.0 (September 2025)
 - Multi-Language Support
 - REST API erweitert
 - Performance-Optimierungen

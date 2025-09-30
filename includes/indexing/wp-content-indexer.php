@@ -691,7 +691,7 @@ function asmi_finish_wp_indexing( $state ) {
 	
 	// Bereinige nicht mehr existierende Posts
 	$existing_post_ids = $wpdb->get_col( 
-		"SELECT DISTINCT post_id FROM {$wpdb->posts} WHERE post_status = 'publish'"
+		"SELECT DISTINCT ID FROM {$wpdb->posts} WHERE post_status = 'publish'"
 	);
 	
 	if ( ! empty( $existing_post_ids ) ) {
