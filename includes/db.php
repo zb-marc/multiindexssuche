@@ -51,7 +51,13 @@ function asmi_install_and_repair_database() {
 
 	// SCHRITT 2: Prüfe die Struktur der existierenden Tabelle
 	$existing_columns = $wpdb->get_results( "SHOW COLUMNS FROM `$table_name`", ARRAY_A );
-	$existing_column_names = wp_list_pluck( $existing_columns, 'Field' );
+	$existing_column_names = array();
+	foreach ( (array) $existing_columns as $_col ) {
+		if ( is_array( $_col ) && isset( $_col['Field'] ) ) {
+			$existing_column_names[] = $_col['Field'];
+		}
+	}
+
 	
 	// Prüfe ob kritische Spalten fehlen
 	$critical_columns = array( 'id', 'source_id', 'lang', 'source_type', 'title', 'indexed_at' );
@@ -153,7 +159,13 @@ function asmi_repair_table_indexes( $table_name ) {
 	global $wpdb;
 	
 	$indexes = $wpdb->get_results( "SHOW INDEX FROM `$table_name`", ARRAY_A );
-	$existing_keys = wp_list_pluck( $indexes, 'Key_name' );
+	$existing_keys = array();
+	foreach ( (array) $indexes as $_idx ) {
+		if ( is_array( $_idx ) && isset( $_idx['Key_name'] ) ) {
+			$existing_keys[] = $_idx['Key_name'];
+		}
+	}
+
 	
 	// Prüfe und erstelle fehlende Indizes
 	$required_indexes = array(

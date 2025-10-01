@@ -128,6 +128,7 @@ function asmi_fetch_items($url, $o){
     }
     
     $body = wp_remote_retrieve_body($res);
+  $body = function_exists('asmi_normalize_to_utf8') ? asmi_normalize_to_utf8($body) : $body;
     asmi_debug_log('PARSER: Downloaded ' . strlen($body) . ' bytes');
     
     set_transient($key, $body, (int)$o['cache_ttl']);

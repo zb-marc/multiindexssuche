@@ -90,6 +90,7 @@ function asmi_ajax_test_chatgpt() {
 		}
 		
 		$body = wp_remote_retrieve_body( $response );
+		$body = function_exists('asmi_normalize_to_utf8') ? asmi_normalize_to_utf8($body) : $body;
 		$data = json_decode( $body, true );
 		
 		if ( isset( $data['error'] ) ) {
@@ -133,6 +134,7 @@ function asmi_ajax_test_chatgpt() {
 	}
 	
 	$body = wp_remote_retrieve_body( $response );
+		$body = function_exists('asmi_normalize_to_utf8') ? asmi_normalize_to_utf8($body) : $body;
 	$data = json_decode( $body, true );
 	
 	if ( isset( $data['error'] ) ) {
