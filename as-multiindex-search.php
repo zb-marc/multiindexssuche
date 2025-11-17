@@ -2,7 +2,7 @@
 /**
  * Plugin Name: AS Multiindex Search
  * Description: Eine föderierte Suche, die native WordPress-Inhalte und mehrsprachige, externe Produktfeeds (XML, CSV, JSON) in jeder AJAX-Suche nahtlos zusammenführt.
- * Version:     1.11.0
+ * Version:     1.11.1
  * Author:      Marc Mirschel
  * Author URI:  https://mirschel.biz
  * Plugin URI:  https://akkusys.de
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Plugin-Konstanten.
-define( 'ASMI_VERSION', '1.11.0' );
+define( 'ASMI_VERSION', '1.11.1' );
 define( 'ASMI_OPT', 'asmi_options' );
 define( 'ASMI_SLUG', 'asmi-settings' );
 define( 'ASMI_REST_NS', 'asmi/v1' );
@@ -49,6 +49,7 @@ function asmi_include_files() {
 	$indexing_path = $inc_path . 'indexing/';
 	$admin_ui_path = $inc_path . 'admin-ui/';
 	$api_path      = $inc_path . 'api/';
+	$tools_path    = $inc_path . 'tools/';
 
 	// Kern-Dateien.
 	require_once $inc_path . 'core.php';
@@ -81,6 +82,11 @@ function asmi_include_files() {
 	foreach ( glob( $admin_ui_path . 'tab-*.php' ) as $file ) {
 		require_once $file;
 	}
+
+	// Tools (Werkzeuge).
+	if ( file_exists( $tools_path . 'image-manager.php' ) ) {
+		require_once $tools_path . 'image-manager.php';
+	}
 }
 asmi_include_files();
 
@@ -102,7 +108,7 @@ function asmi_activate_plugin() {
 		wp_schedule_event( time(), 'daily', 'asmi_cron_wp_content_index' );
 	}
 	
-	// NEU: Image Cleanup Cron (täglich um 3 Uhr morgens).
+	// Image Cleanup Cron (täglich um 3 Uhr morgens).
 	if ( ! wp_next_scheduled( ASMI_IMAGE_CLEANUP_ACTION ) ) {
 		wp_schedule_event( strtotime( 'tomorrow 3:00' ), 'daily', ASMI_IMAGE_CLEANUP_ACTION );
 	}
