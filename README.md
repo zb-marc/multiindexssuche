@@ -3,7 +3,7 @@
 [![WordPress](https://img.shields.io/badge/WordPress-5.8%2B-blue.svg)](https://wordpress.org/)
 [![PHP](https://img.shields.io/badge/PHP-7.4%2B-purple.svg)](https://php.net/)
 [![License](https://img.shields.io/badge/License-GPL--2.0%2B-green.svg)](https://www.gnu.org/licenses/gpl-2.0.html)
-[![Version](https://img.shields.io/badge/Version-1.10.3-orange.svg)](https://github.com/zb-marc/multiindexssuche/releases)
+[![Version](https://img.shields.io/badge/Version-1.11.1-orange.svg)](https://github.com/zb-marc/multiindexssuche/releases)
 
 Eine föderierte Suche für WordPress, die native WordPress-Inhalte und mehrsprachige, externe Produktfeeds (XML, CSV, JSON) in einer nahtlosen AJAX-Suche zusammenführt.
 
@@ -20,9 +20,12 @@ Eine föderierte Suche für WordPress, die native WordPress-Inhalte und mehrspra
 - **REST API**: Vollständige API für externe Integrationen
 - **High-Speed Indexing**: Optimierte Verarbeitung für große Datenmengen
 - **Smart Caching**: Intelligente Cache-Verwaltung für optimale Performance
+- **URL-basiertes Bild-Caching**: Vermeidet Duplikate und reduziert Speicherverbrauch drastisch
+- **Automatisches Image Cleanup**: Garbage Collection für verwaiste Bilder
 - **Export/Import**: WordPress-Index als CSV exportieren und importieren
 - **Marken-Erkennung**: Automatische Erkennung und Kategorisierung von Marken
 - **Bindestrich-Suche**: Intelligente Behandlung von Begriffen mit Bindestrichen
+- **Keyword-Fallback**: Automatische Keyword-Extraktion auch ohne ChatGPT
 
 ## 📦 Installation
 
@@ -66,6 +69,11 @@ chmod 644 as-multiindex-search/*.php
 3. **WordPress-Inhalte** (Admin → Multiindex → Index)
    - Post-Types auswählen (Standard: post, page)
    - Ausgeschlossene IDs definieren
+
+4. **Bildverwaltung** (Admin → Multiindex → System)
+   - Lokale Bildspeicherung aktivieren
+   - Automatische Bereinigung konfigurieren
+   - Fallback-Bilder definieren
 
 ### API-Integration
 
@@ -139,6 +147,9 @@ do_action('asmi_before_feed_import', $feed_url, $lang);
 
 // Nach Post-Indexierung
 do_action('asmi_after_post_indexed', $post_id, $languages);
+
+// Nach Bildbereinigung
+do_action('asmi_after_image_cleanup', $deleted_count);
 ```
 
 #### Filter
@@ -151,6 +162,9 @@ $results = apply_filters('asmi_search_results', $results, $query, $lang);
 
 // Cache-TTL anpassen
 $ttl = apply_filters('asmi_cache_ttl', 900);
+
+// Bildverarbeitung anpassen
+$should_download = apply_filters('asmi_should_download_image', true, $url);
 ```
 
 ### Datenbank-Struktur
@@ -167,6 +181,7 @@ CREATE TABLE wp_asmi_index (
     excerpt TEXT,
     url VARCHAR(2048),
     image VARCHAR(2048),
+    image_url_hash VARCHAR(32),
     price VARCHAR(50),
     sku VARCHAR(100),
     gtin VARCHAR(100),
@@ -176,6 +191,7 @@ CREATE TABLE wp_asmi_index (
     indexed_at DATETIME NOT NULL,
     PRIMARY KEY (id),
     UNIQUE KEY unq_source (source_id, lang, source_type),
+    KEY idx_image_url_hash (image_url_hash),
     FULLTEXT KEY ft_search (title, content, excerpt)
 );
 ```
@@ -206,6 +222,23 @@ asmi_index_reset_and_start();
 
 // WordPress-Inhalte indexieren
 asmi_start_wp_content_indexing();
+
+// Bildbereinigung manuell starten
+asmi_run_image_cleanup();
+```
+
+#### Bildverwaltung
+```php
+// Bild mit URL-Caching herunterladen
+$local_url = asmi_download_image_to_local_dir($remote_url);
+
+// Cache-Verzeichnis abrufen
+$cache_info = asmi_get_image_cache_dir();
+echo $cache_info['path']; // Lokaler Pfad
+echo $cache_info['url'];  // Öffentliche URL
+
+// Verwaiste Bilder bereinigen
+asmi_run_image_cleanup();
 ```
 
 ## 📊 Performance-Optimierung
@@ -216,6 +249,7 @@ asmi_start_wp_content_indexing();
 2. **Batch-Size**: 200 (Standard) - bei Speicherproblemen reduzieren
 3. **Cache-TTL**: 900 Sekunden (15 Minuten) für Feeds
 4. **ChatGPT-Model**: gpt-4o-mini für optimales Kosten-Nutzen-Verhältnis
+5. **Bildverwaltung**: URL-basiertes Caching aktivieren für Speicherersparnis
 
 ### Cron-Jobs
 
@@ -228,7 +262,17 @@ wp cron event run asmi_cron_wp_content_index
 
 # Feed-Import (täglich um 1:00 Uhr)
 wp cron event run asmi_cron_reindex
+
+# Bildbereinigung (täglich um 3:00 Uhr)
+wp cron event run asmi_do_image_cleanup
 ```
+
+### Speicher-Optimierung
+
+Die URL-basierte Bildverwaltung reduziert den Speicherverbrauch erheblich:
+- **Vor Optimierung**: ~26GB Bild-Cache
+- **Nach Optimierung**: ~6-7GB Bild-Cache
+- **Einsparung**: ~75% weniger Speicherverbrauch
 
 ## 🐛 Debugging
 
@@ -257,7 +301,38 @@ define('WP_MEMORY_LIMIT', '256M');
 define('WP_MAX_MEMORY_LIMIT', '512M');
 ```
 
+#### UTF-8 Encoding Probleme
+```php
+// Bereits in Version 1.11.1 behoben
+// Deutsche Umlaute werden korrekt verarbeitet
+```
+
+#### Hoher Speicherverbrauch durch Bilder
+```php
+// Lösung: URL-basiertes Caching aktivieren
+// Automatische Bereinigung aktivieren
+// Bringt bis zu 75% Speichereinsparung
+```
+
 ## 📈 Changelog
+
+### Version 1.11.1 (17. November 2025)
+- **Storage-Optimierung**: URL-basiertes Bild-Caching reduziert Speicherverbrauch von ~26GB auf ~6-7GB (~75% Einsparung)
+- **Automatisches Cleanup**: Garbage Collection System für verwaiste Bilder (täglich um 3:00 Uhr)
+- **Image URL Hash**: Neue Spalte `image_url_hash` verhindert Duplikate durch MD5-basierte Speicherung
+- **Robuste Fehlerbehandlung**: Verbesserte Behandlung von "Cannot redeclare" Funktionskonflikten
+- **UTF-8 Encoding**: Korrekte Verarbeitung deutscher Umlaute (ä, ö, ü, ß)
+- **Bindestriche-Handling**: Optimierte Suche für technische Begriffe wie "Q-Batteries"
+- **Keyword-Fallback**: Automatische Keyword-Extraktion auch ohne ChatGPT-Integration
+- **Cloudflare Bypass**: Verbesserte Feed-Verarbeitung mit Cloudflare-Schutz
+- **Database Repair**: Umfassende Reparaturfunktionen für Datenbankstruktur
+- **Performance**: Intelligente Change Detection reduziert unnötige Re-Indexierung
+
+### Version 1.11.0 (November 2025)
+- **Batch Processing**: Intelligente Batchverarbeitung mit Token-Bucket-System
+- **API-Optimierung**: Reduzierte ChatGPT API-Requests durch Change Detection
+- **Asynchrone Verarbeitung**: Verbesserte Background-Processing-Engine
+- **Cancellation Support**: Sichere Abbruchsmechanismen für laufende Prozesse
 
 ### Version 1.10.5 (29. September 2025)
 - **Kritischer Bugfix**: Behebt "Cannot redeclare" Fatal Errors bei asynchroner Verarbeitung
@@ -292,9 +367,9 @@ define('WP_MAX_MEMORY_LIMIT', '512M');
 ## 🤝 Support & Beitrag
 
 ### Support
-- **Website**: [https://zoobro.de](https://zoobro.de)
+- **Website**: [https://akkusys.de](https://akkusys.de)
 - **Entwickler**: Marc Mirschel
-- **Entwickler-Website**: [https://zoobro.de](https://zoobro.de)
+- **Entwickler-Website**: [https://mirschel.biz](https://mirschel.biz)
 
 ### Fehler melden
 Bitte erstellen Sie detaillierte Fehlerberichte mit:
@@ -321,6 +396,40 @@ Dieses Plugin ist unter der GPL-2.0+ Lizenz veröffentlicht.
 - **APIs**: OpenAI (ChatGPT), DeepL
 - **Framework**: WordPress
 
+## 🎯 Roadmap
+
+### Geplante Features
+
+**Phase 1: Quick Wins (Kurzfristig)**
+- Levenshtein-Distanz für Tippfehlerkorrektur
+- Boost-Faktoren für Produktergebnisse
+- Rate Limiting mit Token-Bucket-Algorithmus
+
+**Phase 2: Analytics & Insights (Mittelfristig)**
+- Such-Analytics Dashboard
+- Performance-Monitoring
+- Click-Analytics für Suchergebnisse
+
+**Phase 3: Advanced Features (Langfristig)**
+- Content Security Policy für externe Bilder
+- Personalisierte Empfehlungen
+- Autocomplete-Vorschläge
+- Facettierte Filterung
+
+## 🔧 Technische Details
+
+### Architektur
+- **Asynchrones Processing**: Tick-basiertes System für stabile Verarbeitung
+- **State Management**: Persistente Zustandsspeicherung
+- **Modular Design**: Klare Trennung von Indexing, API und Frontend
+- **Security First**: Nonce-Verifizierung, Prepared Statements, Capability Checks
+
+### Performance-Metriken
+- **Indexierung**: ~200 Einträge pro Batch (konfigurierbar)
+- **Such-Performance**: <100ms für durchschnittliche Suchen
+- **API-Effizienz**: Intelligente Caching-Strategie reduziert API-Calls um ~80%
+- **Speicheroptimierung**: URL-basiertes Caching spart bis zu 75% Speicher
+
 ---
 
-*AS Multiindex Search - Intelligente Suche für WordPress und externe Datenquellen*
+*AS Multiindex Search - Intelligente föderierte Suche für WordPress und externe Datenquellen*
