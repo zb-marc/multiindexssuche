@@ -11,6 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /**
  * Setzt den Index zurück und startet den asynchronen Indexierungsprozess für Feeds.
+ * WICHTIG: Löscht NICHT mehr alle Produkte, sondern markiert sie für intelligente Updates.
  *
  * @return void
  */
@@ -30,13 +31,23 @@ function asmi_index_reset_and_start() {
 	asmi_debug_log( 'INDEX CONFIG: Feed URLs DE: ' . $o['feed_urls'] );
 	asmi_debug_log( 'INDEX CONFIG: Feed URLs EN: ' . $o['feed_urls_en'] );
 
-	// Löscht nur die Produkte
+	// WICHTIG: Nicht mehr alle Produkte löschen!
+	// Stattdessen werden Produkte nur aktualisiert oder neu hinzugefügt.
+	// Nicht mehr vorhandene Produkte werden am Ende der Indexierung gelöscht.
 	global $wpdb;
 	$table_name = $wpdb->prefix . ASMI_INDEX_TABLE;
-	$deleted = $wpdb->query( "DELETE FROM $table_name WHERE source_type = 'product'" );
-	asmi_debug_log( 'INDEX CLEANUP: Deleted ' . $deleted . ' old product entries' );
+	
+	// Markiere alle bestehenden Produkte mit einem Zeitstempel vor dem Start.
+	// Dies ermöglicht es uns später, nicht mehr vorhandene Produkte zu identifizieren.
+	$wpdb->query(
+		$wpdb->prepare(
+			"UPDATE {$table_name} SET last_modified = %s WHERE source_type = 'product'",
+			current_time( 'mysql' )
+		)
+	);
+	asmi_debug_log( 'INDEX PREPARE: Marked all existing products with timestamp' );
 
-	// Alte Feed-Cache-Transients löschen
+	// Alte Feed-Cache-Transients löschen.
 	$cache_deleted = $wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE '\_transient\_asmi\_feed\_%'" );
 	asmi_debug_log( 'INDEX CLEANUP: Deleted ' . $cache_deleted . ' cache entries' );
 
@@ -76,8 +87,13 @@ function asmi_index_reset_and_start() {
 		'batch'            => $o['index_batch'],
 		'total_items'      => 0,
 		'processed_items'  => 0,
+		'updated_items'    => 0,
+		'new_items'        => 0,
 		'skipped_no_desc'  => 0,
 		'image_errors'     => 0,
+		'images_reused'    => 0,
+		'images_downloaded' => 0,
+		'indexing_start_time' => current_time( 'mysql' ),
 		'current_action'   => __( 'Scanning feeds...', 'asmi-search' ),
 		'started_at'       => time(),
 		'updated_at'       => time(),

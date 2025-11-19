@@ -91,6 +91,8 @@ function asmi_download_image_to_local_dir( $url ) {
 			asmi_debug_log( 'Image already cached: ' . $url );
 			return $existing;
 		}
+		
+		asmi_debug_log( 'Cached image file missing, re-downloading: ' . $url );
 	}
 
 	// Download erforderlich.
@@ -120,7 +122,7 @@ function asmi_download_image_to_local_dir( $url ) {
 	if ( 200 !== $http_code ) {
 		// Lösche die (wahrscheinlich leere) Datei, die bei einem Fehler erstellt wurde.
 		if ( file_exists( $target_file ) ) {
-			unlink( $target_file );
+			wp_delete_file( $target_file );
 		}
 		return new WP_Error(
 			'download_failed',
@@ -131,11 +133,36 @@ function asmi_download_image_to_local_dir( $url ) {
 
 	$local_url = trailingslashit( $cache_dir['url'] ) . $unique_filename;
 	
-	// Speichere Hash in DB für zukünftige Duplikatsprüfung.
-	// Dies wird vom Indexer bei nächstem Update übernommen.
 	asmi_debug_log( 'Image downloaded successfully: ' . $url . ' -> ' . $local_url );
 	
 	return $local_url;
+}
+
+/**
+ * Löscht ein einzelnes Bild aus dem Cache wenn es nicht mehr referenziert wird.
+ *
+ * @param string $image_url Die lokale Bild-URL.
+ * @return bool True bei Erfolg, false bei Fehler.
+ */
+function asmi_delete_orphaned_image( $image_url ) {
+	if ( empty( $image_url ) ) {
+		return false;
+	}
+
+	$cache_dir  = asmi_get_image_cache_dir();
+	
+	// Prüfe ob URL zu unserem Cache gehört.
+	if ( strpos( $image_url, $cache_dir['url'] ) === false ) {
+		return false;
+	}
+
+	$local_path = str_replace( $cache_dir['url'], $cache_dir['path'], $image_url );
+	
+	if ( file_exists( $local_path ) ) {
+		return wp_delete_file( $local_path );
+	}
+
+	return false;
 }
 
 /**
